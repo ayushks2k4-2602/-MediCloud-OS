@@ -3,11 +3,14 @@ package com.saas.platform.hospital.service;
 import com.saas.platform.common.dto.PageResponse;
 import com.saas.platform.common.exception.ResourceNotFoundException;
 import com.saas.platform.hospital.dto.AppointmentDto;
+import com.saas.platform.hospital.dto.MedicineDto;
 import com.saas.platform.hospital.dto.PatientDto;
 import com.saas.platform.hospital.entity.Appointment;
 import com.saas.platform.hospital.entity.AppointmentStatus;
+import com.saas.platform.hospital.entity.Medicine;
 import com.saas.platform.hospital.entity.Patient;
 import com.saas.platform.hospital.repository.AppointmentRepository;
+import com.saas.platform.hospital.repository.MedicineRepository;
 import com.saas.platform.hospital.repository.PatientRepository;
 import com.saas.platform.tenant.context.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +29,7 @@ public class HospitalServiceImpl implements HospitalService {
 
     private final PatientRepository patientRepository;
     private final AppointmentRepository appointmentRepository;
+    private final MedicineRepository medicineRepository;
 
     @Override
     @Transactional
@@ -111,6 +115,34 @@ public class HospitalServiceImpl implements HospitalService {
         return PageResponse.from(page);
     }
 
+    @Override
+    @Transactional
+    public MedicineDto addMedicine(MedicineDto request) {
+        UUID tenantId = TenantContext.getTenantId();
+        Medicine medicine = Medicine.builder()
+                .tenantId(tenantId)
+                .name(request.getName())
+                .genericName(request.getGenericName())
+                .category(request.getCategory())
+                .batchNumber(request.getBatchNumber())
+                .stockQuantity(request.getStockQuantity())
+                .unitPrice(request.getUnitPrice())
+                .expiryDate(request.getExpiryDate())
+                .manufacturer(request.getManufacturer())
+                .build();
+
+        Medicine saved = medicineRepository.save(medicine);
+        return mapMedicineToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<MedicineDto> getMedicines(Pageable pageable) {
+        UUID tenantId = TenantContext.getTenantId();
+        Page<MedicineDto> page = medicineRepository.findByTenantId(tenantId, pageable).map(this::mapMedicineToDto);
+        return PageResponse.from(page);
+    }
+
     private PatientDto mapPatientToDto(Patient p) {
         return PatientDto.builder()
                 .id(p.getId())
@@ -140,6 +172,20 @@ public class HospitalServiceImpl implements HospitalService {
                 .status(a.getStatus())
                 .type(a.getType())
                 .reason(a.getReason())
+                .build();
+    }
+
+    private MedicineDto mapMedicineToDto(Medicine m) {
+        return MedicineDto.builder()
+                .id(m.getId())
+                .name(m.getName())
+                .genericName(m.getGenericName())
+                .category(m.getCategory())
+                .batchNumber(m.getBatchNumber())
+                .stockQuantity(m.getStockQuantity())
+                .unitPrice(m.getUnitPrice())
+                .expiryDate(m.getExpiryDate())
+                .manufacturer(m.getManufacturer())
                 .build();
     }
 }

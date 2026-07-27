@@ -3,6 +3,7 @@ package com.saas.platform.hospital.controller;
 import com.saas.platform.common.dto.ApiResponse;
 import com.saas.platform.common.dto.PageResponse;
 import com.saas.platform.hospital.dto.AppointmentDto;
+import com.saas.platform.hospital.dto.MedicineDto;
 import com.saas.platform.hospital.dto.PatientDto;
 import com.saas.platform.hospital.service.HospitalService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +21,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/hospital")
 @RequiredArgsConstructor
-@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Appointments, EMR)")
+@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Appointments, EMR, Pharmacy)")
 public class HospitalController {
 
     private final HospitalService hospitalService;
@@ -65,13 +66,19 @@ public class HospitalController {
         return ResponseEntity.ok(ApiResponse.success(appointments));
     }
 
-    @PatchMapping("/appointments/{id}/status")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ORG_OWNER', 'ADMIN', 'DOCTOR', 'RECEPTIONIST')")
-    @Operation(summary = "Update appointment status")
-    public ResponseEntity<ApiResponse<AppointmentDto>> updateAppointmentStatus(
-            @PathVariable UUID id,
-            @RequestParam String status) {
-        AppointmentDto updated = hospitalService.updateAppointmentStatus(id, status);
-        return ResponseEntity.ok(ApiResponse.success(updated, "Appointment status updated"));
+    @PostMapping("/medicines")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ORG_OWNER', 'ADMIN', 'PHARMACIST')")
+    @Operation(summary = "Add new medicine to inventory")
+    public ResponseEntity<ApiResponse<MedicineDto>> addMedicine(@Valid @RequestBody MedicineDto request) {
+        MedicineDto medicine = hospitalService.addMedicine(request);
+        return new ResponseEntity<>(ApiResponse.success(medicine, "Medicine added to inventory"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/medicines")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ORG_OWNER', 'ADMIN', 'DOCTOR', 'PHARMACIST')")
+    @Operation(summary = "List pharmacy medicine inventory")
+    public ResponseEntity<ApiResponse<PageResponse<MedicineDto>>> getMedicines(Pageable pageable) {
+        PageResponse<MedicineDto> medicines = hospitalService.getMedicines(pageable);
+        return ResponseEntity.ok(ApiResponse.success(medicines));
     }
 }
