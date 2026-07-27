@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'doctors' | 'appointments' | 'emr' | 'beds' | 'billing'>('dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [hospitalName, setHospitalName] = useState<string>('St. Jude Medical Center');
+  const [hospitalName, setHospitalName] = useState<string>('Ayush Health Network');
 
   if (!isAuthenticated) {
     return (
@@ -19,7 +19,7 @@ export default function App() {
           <form onSubmit={() => setIsAuthenticated(true)} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Medical Email</label>
-              <input type="email" defaultValue="dr.alex@stjude.com" required className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-500 transition" />
+              <input type="email" defaultValue="dr.alex@ayushhealth.com" required className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-500 transition" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Password</label>
