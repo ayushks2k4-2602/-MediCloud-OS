@@ -19,7 +19,7 @@ export default function App() {
           <form onSubmit={() => setIsAuthenticated(true)} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Medical Email</label>
-              <input type="email" defaultValue="dr.alex@ayushhealth.com" required className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-500 transition" />
+              <input type="email" defaultValue="dr.vishnu@ayushhealth.com" required className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-500 transition" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Password</label>
@@ -78,10 +78,10 @@ export default function App() {
         <div className="pt-6 border-t border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="h-9 w-9 rounded-full bg-rose-600 flex items-center justify-center font-bold text-white">
-              DR
+              VT
             </div>
             <div className="truncate">
-              <p className="text-sm font-medium text-white truncate">Dr. Alex Morgan</p>
+              <p className="text-sm font-medium text-white truncate">Dr. Vishnu Tiwari</p>
               <p className="text-xs text-slate-400">Chief Medical Officer</p>
             </div>
           </div>
