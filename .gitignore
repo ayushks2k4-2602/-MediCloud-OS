@@ -1,0 +1,22 @@
+# Target / Build artifacts
+target/
+backend/target/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs & temp files
+*.log
+*.tmp
