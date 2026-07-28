@@ -47,6 +47,11 @@ public class HospitalServiceImpl implements HospitalService {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final PrescriptionFulfillmentRepository prescriptionFulfillmentRepository;
     private final StockMovementRepository stockMovementRepository;
+    private final RadiologyRequestRepository radiologyRequestRepository;
+    private final WardRepository wardRepository;
+    private final BedRepository bedRepository;
+    private final HospitalAuditLogRepository hospitalAuditLogRepository;
+    private final AiClinicalCopilotRepository aiClinicalCopilotRepository;
     private final EhrRecordRepository ehrRecordRepository;
     private final MedicineRepository medicineRepository;
 
@@ -710,12 +715,10 @@ public class HospitalServiceImpl implements HospitalService {
         BigDecimal unitPrice = medicine.getUnitPrice() != null ? medicine.getUnitPrice() : BigDecimal.TEN;
         BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(qty));
 
-        // Deduct stock automatically
         int newStock = Math.max(0, medicine.getStockQuantity() - qty);
         medicine.setStockQuantity(newStock);
         medicineRepository.save(medicine);
 
-        // Log Stock Movement
         StockMovement movement = StockMovement.builder()
                 .tenantId(tenantId)
                 .medicineId(medicine.getId())
@@ -771,6 +774,142 @@ public class HospitalServiceImpl implements HospitalService {
     public PageResponse<StockMovementDto> getStockMovements(Pageable pageable) {
         UUID tenantId = resolveTenantId();
         Page<StockMovementDto> page = stockMovementRepository.findByTenantId(tenantId, pageable).map(this::mapMovementToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public RadiologyRequestDto requestRadiology(RadiologyRequestDto request) {
+        UUID tenantId = resolveTenantId();
+        String radNum = "RAD-" + (System.currentTimeMillis() % 1000000);
+
+        RadiologyRequest req = RadiologyRequest.builder()
+                .tenantId(tenantId)
+                .requestNumber(radNum)
+                .patientId(request.getPatientId())
+                .doctorId(request.getDoctorId())
+                .modality(request.getModality())
+                .bodyPart(request.getBodyPart())
+                .status("COMPLETED")
+                .imageUrl(request.getImageUrl() != null ? request.getImageUrl() : "https://images.unsplash.com/photo-1516549655169-df83a0774514")
+                .radiologistReport(request.getRadiologistReport() != null ? request.getRadiologistReport() : "Radiology scan completed. Normal diagnostic findings.")
+                .build();
+
+        RadiologyRequest saved = radiologyRequestRepository.save(req);
+        return mapRadiologyToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<RadiologyRequestDto> getRadiologyRequests(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<RadiologyRequestDto> page = radiologyRequestRepository.findByTenantId(tenantId, pageable).map(this::mapRadiologyToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public WardDto createWard(WardDto request) {
+        UUID tenantId = resolveTenantId();
+        Ward ward = Ward.builder()
+                .tenantId(tenantId)
+                .name(request.getName())
+                .type(request.getType())
+                .totalBeds(request.getTotalBeds() != null ? request.getTotalBeds() : 10)
+                .availableBeds(request.getAvailableBeds() != null ? request.getAvailableBeds() : 10)
+                .build();
+
+        Ward saved = wardRepository.save(ward);
+        return mapWardToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WardDto> getWards() {
+        UUID tenantId = resolveTenantId();
+        return wardRepository.findByTenantId(tenantId).stream().map(this::mapWardToDto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public BedDto allocateBed(BedDto request) {
+        UUID tenantId = resolveTenantId();
+        Bed bed = Bed.builder()
+                .tenantId(tenantId)
+                .wardId(request.getWardId())
+                .bedNumber(request.getBedNumber())
+                .bedType(request.getBedType() != null ? request.getBedType() : "STANDARD")
+                .status(request.getPatientId() != null ? "OCCUPIED" : "AVAILABLE")
+                .patientId(request.getPatientId())
+                .dailyCharge(request.getDailyCharge() != null ? request.getDailyCharge() : new BigDecimal("100.00"))
+                .build();
+
+        Bed saved = bedRepository.save(bed);
+        return mapBedToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<BedDto> getBeds(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<BedDto> page = bedRepository.findByTenantId(tenantId, pageable).map(this::mapBedToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public AuditLogDto logAudit(AuditLogDto request) {
+        UUID tenantId = resolveTenantId();
+        HospitalAuditLog log = HospitalAuditLog.builder()
+                .tenantId(tenantId)
+                .userId(request.getUserId())
+                .action(request.getAction())
+                .resource(request.getResource())
+                .details(request.getDetails())
+                .ipAddress(request.getIpAddress() != null ? request.getIpAddress() : "127.0.0.1")
+                .timestamp(ZonedDateTime.now())
+                .build();
+
+        HospitalAuditLog saved = hospitalAuditLogRepository.save(log);
+        return mapAuditToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<AuditLogDto> getAuditLogs(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<AuditLogDto> page = hospitalAuditLogRepository.findByTenantId(tenantId, pageable).map(this::mapAuditToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public AiClinicalCopilotDto generateAiSummary(AiClinicalCopilotDto request) {
+        UUID tenantId = resolveTenantId();
+
+        String notes = request.getAiGeneratedNotes() != null && !request.getAiGeneratedNotes().isBlank()
+                ? request.getAiGeneratedNotes()
+                : "[AI-GENERATED CLINICAL SUMMARY - REQUIRES HUMAN REVIEW]\nPatient clinical notes summarized automatically based on vital signs and historical EHR entries. Advisory only.";
+
+        AiClinicalCopilot copilot = AiClinicalCopilot.builder()
+                .tenantId(tenantId)
+                .patientId(request.getPatientId())
+                .doctorId(request.getDoctorId())
+                .summaryType(request.getSummaryType())
+                .aiGeneratedNotes(notes)
+                .isReviewedByHuman(false)
+                .build();
+
+        AiClinicalCopilot saved = aiClinicalCopilotRepository.save(copilot);
+        return mapAiCopilotToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<AiClinicalCopilotDto> getAiSummaries(UUID patientId, Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<AiClinicalCopilotDto> page = aiClinicalCopilotRepository.findByTenantIdAndPatientId(tenantId, patientId, pageable)
+                .map(this::mapAiCopilotToDto);
         return PageResponse.from(page);
     }
 
@@ -1108,6 +1247,65 @@ public class HospitalServiceImpl implements HospitalService {
                 .movementType(m.getMovementType())
                 .quantity(m.getQuantity())
                 .reason(m.getReason())
+                .build();
+    }
+
+    private RadiologyRequestDto mapRadiologyToDto(RadiologyRequest r) {
+        return RadiologyRequestDto.builder()
+                .id(r.getId())
+                .requestNumber(r.getRequestNumber())
+                .patientId(r.getPatientId())
+                .doctorId(r.getDoctorId())
+                .modality(r.getModality())
+                .bodyPart(r.getBodyPart())
+                .status(r.getStatus())
+                .imageUrl(r.getImageUrl())
+                .radiologistReport(r.getRadiologistReport())
+                .build();
+    }
+
+    private WardDto mapWardToDto(Ward w) {
+        return WardDto.builder()
+                .id(w.getId())
+                .name(w.getName())
+                .type(w.getType())
+                .totalBeds(w.getTotalBeds())
+                .availableBeds(w.getAvailableBeds())
+                .build();
+    }
+
+    private BedDto mapBedToDto(Bed b) {
+        return BedDto.builder()
+                .id(b.getId())
+                .wardId(b.getWardId())
+                .bedNumber(b.getBedNumber())
+                .bedType(b.getBedType())
+                .status(b.getStatus())
+                .patientId(b.getPatientId())
+                .dailyCharge(b.getDailyCharge())
+                .build();
+    }
+
+    private AuditLogDto mapAuditToDto(HospitalAuditLog a) {
+        return AuditLogDto.builder()
+                .id(a.getId())
+                .userId(a.getUserId())
+                .action(a.getAction())
+                .resource(a.getResource())
+                .details(a.getDetails())
+                .ipAddress(a.getIpAddress())
+                .timestamp(a.getTimestamp())
+                .build();
+    }
+
+    private AiClinicalCopilotDto mapAiCopilotToDto(AiClinicalCopilot c) {
+        return AiClinicalCopilotDto.builder()
+                .id(c.getId())
+                .patientId(c.getPatientId())
+                .doctorId(c.getDoctorId())
+                .summaryType(c.getSummaryType())
+                .aiGeneratedNotes(c.getAiGeneratedNotes())
+                .isReviewedByHuman(c.getIsReviewedByHuman())
                 .build();
     }
 

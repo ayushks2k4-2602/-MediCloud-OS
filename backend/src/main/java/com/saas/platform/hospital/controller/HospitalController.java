@@ -19,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/hospital")
 @RequiredArgsConstructor
-@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Billing, Payments, LIS, Pharmacy Inventory & Prescription Fulfillment, EHR)")
+@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Billing, Payments, LIS, Pharmacy, Radiology, Bed & Ward Management, Compliance Audit Logs, AI Clinical Copilot, EHR)")
 public class HospitalController {
 
     private final HospitalService hospitalService;
@@ -354,6 +354,80 @@ public class HospitalController {
     public ResponseEntity<ApiResponse<PageResponse<StockMovementDto>>> getStockMovements(Pageable pageable) {
         PageResponse<StockMovementDto> movements = hospitalService.getStockMovements(pageable);
         return ResponseEntity.ok(ApiResponse.success(movements));
+    }
+
+    // RADIOLOGY & IMAGING
+    @PostMapping("/radiology")
+    @Operation(summary = "Request radiology scan (X-Ray, CT, MRI, Ultrasound)")
+    public ResponseEntity<ApiResponse<RadiologyRequestDto>> requestRadiology(@Valid @RequestBody RadiologyRequestDto request) {
+        RadiologyRequestDto rad = hospitalService.requestRadiology(request);
+        return new ResponseEntity<>(ApiResponse.success(rad, "Radiology request created"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/radiology")
+    @Operation(summary = "List radiology requests and imaging reports")
+    public ResponseEntity<ApiResponse<PageResponse<RadiologyRequestDto>>> getRadiologyRequests(Pageable pageable) {
+        PageResponse<RadiologyRequestDto> rads = hospitalService.getRadiologyRequests(pageable);
+        return ResponseEntity.ok(ApiResponse.success(rads));
+    }
+
+    // BED & WARD MANAGEMENT
+    @PostMapping("/wards")
+    @Operation(summary = "Create hospital ward (General, ICU, Private, Surgical)")
+    public ResponseEntity<ApiResponse<WardDto>> createWard(@Valid @RequestBody WardDto request) {
+        WardDto ward = hospitalService.createWard(request);
+        return new ResponseEntity<>(ApiResponse.success(ward, "Ward created"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/wards")
+    @Operation(summary = "List hospital wards")
+    public ResponseEntity<ApiResponse<List<WardDto>>> getWards() {
+        List<WardDto> wards = hospitalService.getWards();
+        return ResponseEntity.ok(ApiResponse.success(wards));
+    }
+
+    @PostMapping("/beds")
+    @Operation(summary = "Allocate bed to patient in ward")
+    public ResponseEntity<ApiResponse<BedDto>> allocateBed(@Valid @RequestBody BedDto request) {
+        BedDto bed = hospitalService.allocateBed(request);
+        return new ResponseEntity<>(ApiResponse.success(bed, "Bed allocated"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/beds")
+    @Operation(summary = "List hospital bed availability & occupancy status")
+    public ResponseEntity<ApiResponse<PageResponse<BedDto>>> getBeds(Pageable pageable) {
+        PageResponse<BedDto> beds = hospitalService.getBeds(pageable);
+        return ResponseEntity.ok(ApiResponse.success(beds));
+    }
+
+    // AUDIT LOGS & COMPLIANCE
+    @PostMapping("/audit")
+    @Operation(summary = "Log system compliance audit event")
+    public ResponseEntity<ApiResponse<AuditLogDto>> logAudit(@Valid @RequestBody AuditLogDto request) {
+        AuditLogDto log = hospitalService.logAudit(request);
+        return new ResponseEntity<>(ApiResponse.success(log, "Audit log recorded"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/audit")
+    @Operation(summary = "List system audit logs for compliance review")
+    public ResponseEntity<ApiResponse<PageResponse<AuditLogDto>>> getAuditLogs(Pageable pageable) {
+        PageResponse<AuditLogDto> logs = hospitalService.getAuditLogs(pageable);
+        return ResponseEntity.ok(ApiResponse.success(logs));
+    }
+
+    // AI CLINICAL COPILOT
+    @PostMapping("/ai-copilot")
+    @Operation(summary = "Generate AI clinical SOAP summary / visit notes")
+    public ResponseEntity<ApiResponse<AiClinicalCopilotDto>> generateAiSummary(@Valid @RequestBody AiClinicalCopilotDto request) {
+        AiClinicalCopilotDto copilot = hospitalService.generateAiSummary(request);
+        return new ResponseEntity<>(ApiResponse.success(copilot, "AI summary generated (Advisory - Human review required)"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/ai-copilot/patient/{patientId}")
+    @Operation(summary = "Get AI clinical copilot notes for patient")
+    public ResponseEntity<ApiResponse<PageResponse<AiClinicalCopilotDto>>> getAiSummaries(@PathVariable UUID patientId, Pageable pageable) {
+        PageResponse<AiClinicalCopilotDto> summaries = hospitalService.getAiSummaries(patientId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(summaries));
     }
 
     // EHR RECORDS

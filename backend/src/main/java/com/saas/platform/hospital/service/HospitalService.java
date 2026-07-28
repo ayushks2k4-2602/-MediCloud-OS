@@ -73,6 +73,21 @@ public interface HospitalService {
     StockMovementDto logStockMovement(StockMovementDto request);
     PageResponse<StockMovementDto> getStockMovements(Pageable pageable);
 
+    RadiologyRequestDto requestRadiology(RadiologyRequestDto request);
+    PageResponse<RadiologyRequestDto> getRadiologyRequests(Pageable pageable);
+
+    WardDto createWard(WardDto request);
+    List<WardDto> getWards();
+
+    BedDto allocateBed(BedDto request);
+    PageResponse<BedDto> getBeds(Pageable pageable);
+
+    AuditLogDto logAudit(AuditLogDto request);
+    PageResponse<AuditLogDto> getAuditLogs(Pageable pageable);
+
+    AiClinicalCopilotDto generateAiSummary(AiClinicalCopilotDto request);
+    PageResponse<AiClinicalCopilotDto> getAiSummaries(UUID patientId, Pageable pageable);
+
     EhrRecordDto saveEhrRecord(EhrRecordDto request);
     PageResponse<EhrRecordDto> getPatientEhrRecords(UUID patientId, Pageable pageable);
 
