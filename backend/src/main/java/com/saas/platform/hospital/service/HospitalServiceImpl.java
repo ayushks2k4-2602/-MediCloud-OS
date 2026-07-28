@@ -13,7 +13,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -24,8 +26,10 @@ public class HospitalServiceImpl implements HospitalService {
 
     private final PatientRepository patientRepository;
     private final DoctorRepository doctorRepository;
+    private final SpecializationRepository specializationRepository;
+    private final ShiftRepository shiftRepository;
     private final AppointmentRepository appointmentRepository;
-    private final MedicalRecordRepository medicalRecordRepository;
+    private final EhrRecordRepository ehrRecordRepository;
     private final MedicineRepository medicineRepository;
 
     private UUID resolveTenantId() {
@@ -58,7 +62,6 @@ public class HospitalServiceImpl implements HospitalService {
                 .build();
 
         Patient saved = patientRepository.save(patient);
-        log.info("Registered patient: id={}, code={}", saved.getId(), saved.getPatientCode());
         return mapPatientToDto(saved);
     }
 
@@ -90,15 +93,19 @@ public class HospitalServiceImpl implements HospitalService {
                 .tenantId(tenantId)
                 .userId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID())
                 .departmentId(request.getDepartmentId())
+                .specializationId(request.getSpecializationId())
                 .specialization(request.getSpecialization())
                 .qualification(request.getQualification())
+                .experienceYears(request.getExperienceYears() != null ? request.getExperienceYears() : 5)
+                .contactNumber(request.getContactNumber())
+                .profilePhotoUrl(request.getProfilePhotoUrl())
+                .employmentStatus(request.getEmploymentStatus() != null ? request.getEmploymentStatus() : "FULL_TIME")
                 .consultationFee(request.getConsultationFee())
                 .licenseNumber(request.getLicenseNumber())
                 .isAvailable(request.getIsAvailable() != null ? request.getIsAvailable() : true)
                 .build();
 
         Doctor saved = doctorRepository.save(doctor);
-        log.info("Doctor registered: id={}, license={}", saved.getId(), saved.getLicenseNumber());
         return mapDoctorToDto(saved);
     }
 
@@ -112,9 +119,10 @@ public class HospitalServiceImpl implements HospitalService {
         doctor.setQualification(request.getQualification());
         doctor.setConsultationFee(request.getConsultationFee());
         doctor.setLicenseNumber(request.getLicenseNumber());
-        if (request.getIsAvailable() != null) {
-            doctor.setIsAvailable(request.getIsAvailable());
-        }
+        if (request.getExperienceYears() != null) doctor.setExperienceYears(request.getExperienceYears());
+        if (request.getContactNumber() != null) doctor.setContactNumber(request.getContactNumber());
+        if (request.getEmploymentStatus() != null) doctor.setEmploymentStatus(request.getEmploymentStatus());
+        if (request.getIsAvailable() != null) doctor.setIsAvailable(request.getIsAvailable());
 
         Doctor updated = doctorRepository.save(doctor);
         return mapDoctorToDto(updated);
@@ -141,6 +149,57 @@ public class HospitalServiceImpl implements HospitalService {
 
     @Override
     @Transactional
+    public SpecializationDto createSpecialization(SpecializationDto request) {
+        UUID tenantId = resolveTenantId();
+        Specialization spec = Specialization.builder()
+                .tenantId(tenantId)
+                .name(request.getName())
+                .code(request.getCode())
+                .description(request.getDescription())
+                .build();
+
+        Specialization saved = specializationRepository.save(spec);
+        return mapSpecializationToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SpecializationDto> getSpecializations() {
+        UUID tenantId = resolveTenantId();
+        return specializationRepository.findByTenantId(tenantId).stream()
+                .map(this::mapSpecializationToDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public ShiftDto createShift(ShiftDto request) {
+        UUID tenantId = resolveTenantId();
+        Shift shift = Shift.builder()
+                .tenantId(tenantId)
+                .name(request.getName())
+                .startTime(request.getStartTime())
+                .endTime(request.getEndTime())
+                .workingDays(request.getWorkingDays() != null ? request.getWorkingDays() : "Mon,Tue,Wed,Thu,Fri")
+                .departmentId(request.getDepartmentId())
+                .status(request.getStatus() != null ? request.getStatus() : "ACTIVE")
+                .build();
+
+        Shift saved = shiftRepository.save(shift);
+        return mapShiftToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShiftDto> getShifts() {
+        UUID tenantId = resolveTenantId();
+        return shiftRepository.findByTenantId(tenantId).stream()
+                .map(this::mapShiftToDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
     public AppointmentDto scheduleAppointment(AppointmentDto request) {
         UUID tenantId = resolveTenantId();
 
@@ -157,7 +216,6 @@ public class HospitalServiceImpl implements HospitalService {
                 .build();
 
         Appointment saved = appointmentRepository.save(appointment);
-        log.info("Appointment scheduled: id={}", saved.getId());
         return mapAppointmentToDto(saved);
     }
 
@@ -182,34 +240,36 @@ public class HospitalServiceImpl implements HospitalService {
 
     @Override
     @Transactional
-    public MedicalRecordDto createMedicalRecord(MedicalRecordDto request) {
+    public EhrRecordDto saveEhrRecord(EhrRecordDto request) {
         UUID tenantId = resolveTenantId();
 
-        MedicalRecord record = MedicalRecord.builder()
+        EhrRecord record = EhrRecord.builder()
                 .tenantId(tenantId)
                 .patientId(request.getPatientId())
                 .doctorId(request.getDoctorId())
                 .appointmentId(request.getAppointmentId())
-                .symptoms(request.getSymptoms())
-                .diagnosis(request.getDiagnosis())
-                .vitalBp(request.getVitalBp())
-                .vitalHeartRate(request.getVitalHeartRate())
-                .vitalTemp(request.getVitalTemp())
-                .vitalWeight(request.getVitalWeight())
+                .medicalHistory(request.getMedicalHistory())
+                .diagnoses(request.getDiagnoses())
+                .allergies(request.getAllergies())
+                .vitalsJson(request.getVitalsJson())
                 .doctorNotes(request.getDoctorNotes())
+                .soapNotes(request.getSoapNotes())
+                .immunizations(request.getImmunizations())
+                .surgeryHistory(request.getSurgeryHistory())
+                .familyHistory(request.getFamilyHistory())
+                .attachmentsJson(request.getAttachmentsJson())
                 .build();
 
-        MedicalRecord saved = medicalRecordRepository.save(record);
-        log.info("Medical record created: id={}", saved.getId());
-        return mapMedicalRecordToDto(saved);
+        EhrRecord saved = ehrRecordRepository.save(record);
+        return mapEhrToDto(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<MedicalRecordDto> getPatientMedicalRecords(UUID patientId, Pageable pageable) {
+    public PageResponse<EhrRecordDto> getPatientEhrRecords(UUID patientId, Pageable pageable) {
         UUID tenantId = resolveTenantId();
-        Page<MedicalRecordDto> page = medicalRecordRepository.findByTenantIdAndPatientId(tenantId, patientId, pageable)
-                .map(this::mapMedicalRecordToDto);
+        Page<EhrRecordDto> page = ehrRecordRepository.findByTenantIdAndPatientId(tenantId, patientId, pageable)
+                .map(this::mapEhrToDto);
         return PageResponse.from(page);
     }
 
@@ -264,11 +324,37 @@ public class HospitalServiceImpl implements HospitalService {
                 .id(d.getId())
                 .userId(d.getUserId())
                 .departmentId(d.getDepartmentId())
+                .specializationId(d.getSpecializationId())
                 .specialization(d.getSpecialization())
                 .qualification(d.getQualification())
+                .experienceYears(d.getExperienceYears())
+                .contactNumber(d.getContactNumber())
+                .profilePhotoUrl(d.getProfilePhotoUrl())
+                .employmentStatus(d.getEmploymentStatus())
                 .consultationFee(d.getConsultationFee())
                 .licenseNumber(d.getLicenseNumber())
                 .isAvailable(d.getIsAvailable())
+                .build();
+    }
+
+    private SpecializationDto mapSpecializationToDto(Specialization s) {
+        return SpecializationDto.builder()
+                .id(s.getId())
+                .name(s.getName())
+                .code(s.getCode())
+                .description(s.getDescription())
+                .build();
+    }
+
+    private ShiftDto mapShiftToDto(Shift s) {
+        return ShiftDto.builder()
+                .id(s.getId())
+                .name(s.getName())
+                .startTime(s.getStartTime())
+                .endTime(s.getEndTime())
+                .workingDays(s.getWorkingDays())
+                .departmentId(s.getDepartmentId())
+                .status(s.getStatus())
                 .build();
     }
 
@@ -286,19 +372,22 @@ public class HospitalServiceImpl implements HospitalService {
                 .build();
     }
 
-    private MedicalRecordDto mapMedicalRecordToDto(MedicalRecord m) {
-        return MedicalRecordDto.builder()
-                .id(m.getId())
-                .patientId(m.getPatientId())
-                .doctorId(m.getDoctorId())
-                .appointmentId(m.getAppointmentId())
-                .symptoms(m.getSymptoms())
-                .diagnosis(m.getDiagnosis())
-                .vitalBp(m.getVitalBp())
-                .vitalHeartRate(m.getVitalHeartRate())
-                .vitalTemp(m.getVitalTemp())
-                .vitalWeight(m.getVitalWeight())
-                .doctorNotes(m.getDoctorNotes())
+    private EhrRecordDto mapEhrToDto(EhrRecord e) {
+        return EhrRecordDto.builder()
+                .id(e.getId())
+                .patientId(e.getPatientId())
+                .doctorId(e.getDoctorId())
+                .appointmentId(e.getAppointmentId())
+                .medicalHistory(e.getMedicalHistory())
+                .diagnoses(e.getDiagnoses())
+                .allergies(e.getAllergies())
+                .vitalsJson(e.getVitalsJson())
+                .doctorNotes(e.getDoctorNotes())
+                .soapNotes(e.getSoapNotes())
+                .immunizations(e.getImmunizations())
+                .surgeryHistory(e.getSurgeryHistory())
+                .familyHistory(e.getFamilyHistory())
+                .attachmentsJson(e.getAttachmentsJson())
                 .build();
     }
 

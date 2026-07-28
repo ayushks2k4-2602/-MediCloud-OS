@@ -13,12 +13,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/hospital")
 @RequiredArgsConstructor
-@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, EMR, Pharmacy)")
+@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Specializations, Shifts, EHR, Prescriptions)")
 public class HospitalController {
 
     private final HospitalService hospitalService;
@@ -79,6 +80,36 @@ public class HospitalController {
         return ResponseEntity.ok(ApiResponse.success(doctors));
     }
 
+    // SPECIALIZATIONS
+    @PostMapping("/specializations")
+    @Operation(summary = "Create medical specialization")
+    public ResponseEntity<ApiResponse<SpecializationDto>> createSpecialization(@Valid @RequestBody SpecializationDto request) {
+        SpecializationDto spec = hospitalService.createSpecialization(request);
+        return new ResponseEntity<>(ApiResponse.success(spec, "Specialization created"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/specializations")
+    @Operation(summary = "List all medical specializations")
+    public ResponseEntity<ApiResponse<List<SpecializationDto>>> getSpecializations() {
+        List<SpecializationDto> list = hospitalService.getSpecializations();
+        return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
+    // SHIFTS
+    @PostMapping("/shifts")
+    @Operation(summary = "Create work shift")
+    public ResponseEntity<ApiResponse<ShiftDto>> createShift(@Valid @RequestBody ShiftDto request) {
+        ShiftDto shift = hospitalService.createShift(request);
+        return new ResponseEntity<>(ApiResponse.success(shift, "Shift created"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/shifts")
+    @Operation(summary = "List hospital shifts")
+    public ResponseEntity<ApiResponse<List<ShiftDto>>> getShifts() {
+        List<ShiftDto> list = hospitalService.getShifts();
+        return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
     // APPOINTMENTS
     @PostMapping("/appointments")
     @Operation(summary = "Schedule a doctor appointment")
@@ -94,20 +125,20 @@ public class HospitalController {
         return ResponseEntity.ok(ApiResponse.success(appointments));
     }
 
-    // EHR MEDICAL RECORDS
-    @PostMapping("/ehr")
-    @Operation(summary = "Create an EHR medical record for a patient")
-    public ResponseEntity<ApiResponse<MedicalRecordDto>> createMedicalRecord(@Valid @RequestBody MedicalRecordDto request) {
-        MedicalRecordDto record = hospitalService.createMedicalRecord(request);
-        return new ResponseEntity<>(ApiResponse.success(record, "Medical record created"), HttpStatus.CREATED);
+    // EHR RECORDS
+    @PostMapping("/ehr/record")
+    @Operation(summary = "Create an advanced EHR record")
+    public ResponseEntity<ApiResponse<EhrRecordDto>> saveEhrRecord(@Valid @RequestBody EhrRecordDto request) {
+        EhrRecordDto record = hospitalService.saveEhrRecord(request);
+        return new ResponseEntity<>(ApiResponse.success(record, "EHR record saved"), HttpStatus.CREATED);
     }
 
-    @GetMapping("/ehr/patient/{patientId}")
-    @Operation(summary = "Get medical records history for a patient")
-    public ResponseEntity<ApiResponse<PageResponse<MedicalRecordDto>>> getPatientMedicalRecords(
+    @GetMapping("/ehr/patient/{patientId}/records")
+    @Operation(summary = "Get patient EHR records timeline")
+    public ResponseEntity<ApiResponse<PageResponse<EhrRecordDto>>> getPatientEhrRecords(
             @PathVariable UUID patientId,
             Pageable pageable) {
-        PageResponse<MedicalRecordDto> records = hospitalService.getPatientMedicalRecords(patientId, pageable);
+        PageResponse<EhrRecordDto> records = hospitalService.getPatientEhrRecords(patientId, pageable);
         return ResponseEntity.ok(ApiResponse.success(records));
     }
 

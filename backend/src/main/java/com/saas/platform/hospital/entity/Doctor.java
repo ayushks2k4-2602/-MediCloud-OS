@@ -25,11 +25,28 @@ public class Doctor extends BaseEntity {
     @Column(name = "department_id")
     private UUID departmentId;
 
+    @Column(name = "specialization_id")
+    private UUID specializationId;
+
     @Column(name = "specialization", nullable = false, length = 100)
     private String specialization;
 
     @Column(name = "qualification", length = 100)
     private String qualification;
+
+    @Column(name = "experience_years")
+    @Builder.Default
+    private Integer experienceYears = 5;
+
+    @Column(name = "contact_number", length = 30)
+    private String contactNumber;
+
+    @Column(name = "profile_photo_url")
+    private String profilePhotoUrl;
+
+    @Column(name = "employment_status", length = 30)
+    @Builder.Default
+    private String employmentStatus = "FULL_TIME";
 
     @Column(name = "consultation_fee", nullable = false)
     @Builder.Default

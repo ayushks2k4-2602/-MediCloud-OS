@@ -19,11 +19,16 @@ public class DoctorDto {
     private UUID id;
     private UUID userId;
     private UUID departmentId;
+    private UUID specializationId;
 
     @NotBlank(message = "Specialization is required")
     private String specialization;
 
     private String qualification;
+    private Integer experienceYears;
+    private String contactNumber;
+    private String profilePhotoUrl;
+    private String employmentStatus;
 
     @NotNull(message = "Consultation fee is required")
     private BigDecimal consultationFee;
