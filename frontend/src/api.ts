@@ -39,7 +39,7 @@ async function request<T>(
 
       clearTimeout(timeoutId);
 
-      if (res.status === 401) {
+      if (res.status === 401 && !path.startsWith('/auth/')) {
         localStorage.removeItem('medicloud_token');
         localStorage.removeItem('medicloud_user');
         localStorage.removeItem('medicloud_tenant_id');
