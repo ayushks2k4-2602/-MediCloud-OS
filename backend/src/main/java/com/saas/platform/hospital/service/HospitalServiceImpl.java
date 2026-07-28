@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +39,10 @@ public class HospitalServiceImpl implements HospitalService {
     private final PaymentRepository paymentRepository;
     private final InsuranceProviderRepository insuranceProviderRepository;
     private final InsuranceClaimRepository insuranceClaimRepository;
+    private final LabTestCatalogRepository labTestCatalogRepository;
+    private final LabOrderRepository labOrderRepository;
+    private final LabSampleRepository labSampleRepository;
+    private final LabTestResultRepository labTestResultRepository;
     private final EhrRecordRepository ehrRecordRepository;
     private final MedicineRepository medicineRepository;
 
@@ -511,6 +516,133 @@ public class HospitalServiceImpl implements HospitalService {
 
     @Override
     @Transactional
+    public LabTestCatalogDto addLabTest(LabTestCatalogDto request) {
+        UUID tenantId = resolveTenantId();
+        LabTestCatalog test = LabTestCatalog.builder()
+                .tenantId(tenantId)
+                .name(request.getName())
+                .code(request.getCode())
+                .category(request.getCategory())
+                .price(request.getPrice())
+                .sampleType(request.getSampleType())
+                .normalRange(request.getNormalRange())
+                .unit(request.getUnit())
+                .build();
+
+        LabTestCatalog saved = labTestCatalogRepository.save(test);
+        return mapLabTestToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LabTestCatalogDto> getLabTestCatalog() {
+        UUID tenantId = resolveTenantId();
+        return labTestCatalogRepository.findByTenantId(tenantId).stream()
+                .map(this::mapLabTestToDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public LabOrderDto createLabOrder(LabOrderDto request) {
+        UUID tenantId = resolveTenantId();
+        String orderNum = "LAB-" + (System.currentTimeMillis() % 1000000);
+
+        LabOrder order = LabOrder.builder()
+                .tenantId(tenantId)
+                .orderNumber(orderNum)
+                .patientId(request.getPatientId())
+                .doctorId(request.getDoctorId())
+                .appointmentId(request.getAppointmentId())
+                .status("ORDERED")
+                .totalAmount(request.getTotalAmount() != null ? request.getTotalAmount() : BigDecimal.ZERO)
+                .build();
+
+        LabOrder saved = labOrderRepository.save(order);
+        return mapLabOrderToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<LabOrderDto> getLabOrders(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<LabOrderDto> page = labOrderRepository.findByTenantId(tenantId, pageable).map(this::mapLabOrderToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public LabSampleDto collectLabSample(LabSampleDto request) {
+        UUID tenantId = resolveTenantId();
+        String sampleCode = "SMP-" + (System.currentTimeMillis() % 1000000);
+
+        LabSample sample = LabSample.builder()
+                .tenantId(tenantId)
+                .sampleCode(sampleCode)
+                .labOrderId(request.getLabOrderId())
+                .specimenType(request.getSpecimenType())
+                .status("COLLECTED")
+                .collectedAt(ZonedDateTime.now())
+                .build();
+
+        LabSample saved = labSampleRepository.save(sample);
+
+        LabOrder order = labOrderRepository.findById(request.getLabOrderId()).orElse(null);
+        if (order != null) {
+            order.setStatus("SAMPLE_COLLECTED");
+            labOrderRepository.save(order);
+        }
+
+        return mapLabSampleToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<LabSampleDto> getLabSamples(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<LabSampleDto> page = labSampleRepository.findByTenantId(tenantId, pageable).map(this::mapLabSampleToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public LabTestResultDto enterLabResult(LabTestResultDto request) {
+        UUID tenantId = resolveTenantId();
+
+        LabTestResult result = LabTestResult.builder()
+                .tenantId(tenantId)
+                .labOrderId(request.getLabOrderId())
+                .testCatalogId(request.getTestCatalogId())
+                .resultValue(request.getResultValue())
+                .normalRange(request.getNormalRange())
+                .unit(request.getUnit())
+                .isCritical(request.getIsCritical() != null ? request.getIsCritical() : false)
+                .status("APPROVED")
+                .pathologistNotes(request.getPathologistNotes())
+                .approvedAt(ZonedDateTime.now())
+                .build();
+
+        LabTestResult saved = labTestResultRepository.save(result);
+
+        LabOrder order = labOrderRepository.findById(request.getLabOrderId()).orElse(null);
+        if (order != null) {
+            order.setStatus("COMPLETED");
+            labOrderRepository.save(order);
+        }
+
+        return mapLabResultToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<LabTestResultDto> getLabResults(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<LabTestResultDto> page = labTestResultRepository.findByTenantId(tenantId, pageable).map(this::mapLabResultToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
     public EhrRecordDto saveEhrRecord(EhrRecordDto request) {
         UUID tenantId = resolveTenantId();
 
@@ -744,6 +876,58 @@ public class HospitalServiceImpl implements HospitalService {
                 .approvedAmount(c.getApprovedAmount())
                 .status(c.getStatus())
                 .notes(c.getNotes())
+                .build();
+    }
+
+    private LabTestCatalogDto mapLabTestToDto(LabTestCatalog t) {
+        return LabTestCatalogDto.builder()
+                .id(t.getId())
+                .name(t.getName())
+                .code(t.getCode())
+                .category(t.getCategory())
+                .price(t.getPrice())
+                .sampleType(t.getSampleType())
+                .normalRange(t.getNormalRange())
+                .unit(t.getUnit())
+                .build();
+    }
+
+    private LabOrderDto mapLabOrderToDto(LabOrder o) {
+        return LabOrderDto.builder()
+                .id(o.getId())
+                .orderNumber(o.getOrderNumber())
+                .patientId(o.getPatientId())
+                .doctorId(o.getDoctorId())
+                .appointmentId(o.getAppointmentId())
+                .status(o.getStatus())
+                .totalAmount(o.getTotalAmount())
+                .build();
+    }
+
+    private LabSampleDto mapLabSampleToDto(LabSample s) {
+        return LabSampleDto.builder()
+                .id(s.getId())
+                .sampleCode(s.getSampleCode())
+                .labOrderId(s.getLabOrderId())
+                .specimenType(s.getSpecimenType())
+                .status(s.getStatus())
+                .collectedAt(s.getCollectedAt())
+                .receivedAt(s.getReceivedAt())
+                .build();
+    }
+
+    private LabTestResultDto mapLabResultToDto(LabTestResult r) {
+        return LabTestResultDto.builder()
+                .id(r.getId())
+                .labOrderId(r.getLabOrderId())
+                .testCatalogId(r.getTestCatalogId())
+                .resultValue(r.getResultValue())
+                .normalRange(r.getNormalRange())
+                .unit(r.getUnit())
+                .isCritical(r.getIsCritical())
+                .status(r.getStatus())
+                .pathologistNotes(r.getPathologistNotes())
+                .approvedAt(r.getApprovedAt())
                 .build();
     }
 

@@ -10,5 +10,6 @@ import java.util.UUID;
 
 @Repository
 public interface LabOrderRepository extends JpaRepository<LabOrder, UUID> {
+    Page<LabOrder> findByTenantId(UUID tenantId, Pageable pageable);
     Page<LabOrder> findByTenantIdAndPatientId(UUID tenantId, UUID patientId, Pageable pageable);
 }

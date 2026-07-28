@@ -19,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/hospital")
 @RequiredArgsConstructor
-@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Billing, Payments, Insurance Claims, EHR, Pharmacy)")
+@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Billing, Payments, LIS, EHR, Pharmacy)")
 public class HospitalController {
 
     private final HospitalService hospitalService;
@@ -240,6 +240,63 @@ public class HospitalController {
     public ResponseEntity<ApiResponse<PageResponse<InsuranceClaimDto>>> getInsuranceClaims(Pageable pageable) {
         PageResponse<InsuranceClaimDto> claims = hospitalService.getInsuranceClaims(pageable);
         return ResponseEntity.ok(ApiResponse.success(claims));
+    }
+
+    // LABORATORY INFORMATION SYSTEM (LIS)
+    @PostMapping("/lab/tests")
+    @Operation(summary = "Add lab test to catalog")
+    public ResponseEntity<ApiResponse<LabTestCatalogDto>> addLabTest(@Valid @RequestBody LabTestCatalogDto request) {
+        LabTestCatalogDto test = hospitalService.addLabTest(request);
+        return new ResponseEntity<>(ApiResponse.success(test, "Lab test added to catalog"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/lab/tests")
+    @Operation(summary = "Get lab test catalog")
+    public ResponseEntity<ApiResponse<List<LabTestCatalogDto>>> getLabTestCatalog() {
+        List<LabTestCatalogDto> catalog = hospitalService.getLabTestCatalog();
+        return ResponseEntity.ok(ApiResponse.success(catalog));
+    }
+
+    @PostMapping("/lab/orders")
+    @Operation(summary = "Create lab order for patient")
+    public ResponseEntity<ApiResponse<LabOrderDto>> createLabOrder(@Valid @RequestBody LabOrderDto request) {
+        LabOrderDto order = hospitalService.createLabOrder(request);
+        return new ResponseEntity<>(ApiResponse.success(order, "Lab order created"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/lab/orders")
+    @Operation(summary = "List lab orders")
+    public ResponseEntity<ApiResponse<PageResponse<LabOrderDto>>> getLabOrders(Pageable pageable) {
+        PageResponse<LabOrderDto> orders = hospitalService.getLabOrders(pageable);
+        return ResponseEntity.ok(ApiResponse.success(orders));
+    }
+
+    @PostMapping("/lab/samples")
+    @Operation(summary = "Collect specimen sample for lab order")
+    public ResponseEntity<ApiResponse<LabSampleDto>> collectLabSample(@Valid @RequestBody LabSampleDto request) {
+        LabSampleDto sample = hospitalService.collectLabSample(request);
+        return new ResponseEntity<>(ApiResponse.success(sample, "Lab sample collected"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/lab/samples")
+    @Operation(summary = "List collected lab samples")
+    public ResponseEntity<ApiResponse<PageResponse<LabSampleDto>>> getLabSamples(Pageable pageable) {
+        PageResponse<LabSampleDto> samples = hospitalService.getLabSamples(pageable);
+        return ResponseEntity.ok(ApiResponse.success(samples));
+    }
+
+    @PostMapping("/lab/results")
+    @Operation(summary = "Enter and approve lab test result")
+    public ResponseEntity<ApiResponse<LabTestResultDto>> enterLabResult(@Valid @RequestBody LabTestResultDto request) {
+        LabTestResultDto result = hospitalService.enterLabResult(request);
+        return new ResponseEntity<>(ApiResponse.success(result, "Lab test result approved"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/lab/results")
+    @Operation(summary = "List approved lab test results")
+    public ResponseEntity<ApiResponse<PageResponse<LabTestResultDto>>> getLabResults(Pageable pageable) {
+        PageResponse<LabTestResultDto> results = hospitalService.getLabResults(pageable);
+        return ResponseEntity.ok(ApiResponse.success(results));
     }
 
     // EHR RECORDS

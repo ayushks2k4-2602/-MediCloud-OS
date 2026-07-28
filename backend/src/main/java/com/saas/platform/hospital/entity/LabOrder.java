@@ -6,7 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.*;
 
-import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -21,29 +21,23 @@ public class LabOrder extends BaseEntity {
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
+    @Column(name = "order_number", nullable = false, length = 50)
+    private String orderNumber;
+
     @Column(name = "patient_id", nullable = false)
     private UUID patientId;
 
     @Column(name = "doctor_id")
     private UUID doctorId;
 
-    @Column(name = "lab_test_id", nullable = false)
-    private UUID labTestId;
+    @Column(name = "appointment_id")
+    private UUID appointmentId;
 
-    @Column(name = "status", nullable = false, length = 30)
+    @Column(name = "status", length = 30)
     @Builder.Default
-    private String status = "PENDING";
+    private String status = "ORDERED"; // ORDERED, SAMPLE_COLLECTED, IN_PROGRESS, COMPLETED, CANCELLED
 
-    @Column(name = "result_text", columnDefinition = "TEXT")
-    private String resultText;
-
-    @Column(name = "result_file_url")
-    private String resultFileUrl;
-
+    @Column(name = "total_amount")
     @Builder.Default
-    @Column(name = "order_date", nullable = false)
-    private Instant orderDate = Instant.now();
-
-    @Column(name = "completed_date")
-    private Instant completedDate;
+    private BigDecimal totalAmount = BigDecimal.ZERO;
 }

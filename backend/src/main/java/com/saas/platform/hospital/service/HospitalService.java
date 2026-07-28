@@ -49,6 +49,18 @@ public interface HospitalService {
     InsuranceClaimDto submitInsuranceClaim(InsuranceClaimDto request);
     PageResponse<InsuranceClaimDto> getInsuranceClaims(Pageable pageable);
 
+    LabTestCatalogDto addLabTest(LabTestCatalogDto request);
+    List<LabTestCatalogDto> getLabTestCatalog();
+
+    LabOrderDto createLabOrder(LabOrderDto request);
+    PageResponse<LabOrderDto> getLabOrders(Pageable pageable);
+
+    LabSampleDto collectLabSample(LabSampleDto request);
+    PageResponse<LabSampleDto> getLabSamples(Pageable pageable);
+
+    LabTestResultDto enterLabResult(LabTestResultDto request);
+    PageResponse<LabTestResultDto> getLabResults(Pageable pageable);
+
     EhrRecordDto saveEhrRecord(EhrRecordDto request);
     PageResponse<EhrRecordDto> getPatientEhrRecords(UUID patientId, Pageable pageable);
 
