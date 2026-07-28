@@ -11,6 +11,7 @@ export interface ModalProps {
 
 export default function Modal({ isOpen, onClose, title, children, footer, size = 'md' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -21,7 +22,13 @@ export default function Modal({ isOpen, onClose, title, children, footer, size =
 
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
-      modalRef.current?.focus();
+      // Only focus modal once when initially opened (prevents stealing focus from input fields while typing)
+      if (!wasOpenRef.current) {
+        modalRef.current?.focus();
+        wasOpenRef.current = true;
+      }
+    } else {
+      wasOpenRef.current = false;
     }
 
     return () => {
@@ -57,4 +64,4 @@ export default function Modal({ isOpen, onClose, title, children, footer, size =
       </div>
     </div>
   );
-};
+}
