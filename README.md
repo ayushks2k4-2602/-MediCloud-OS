@@ -1,72 +1,55 @@
-# Enterprise Multi-Tenant SaaS Platform
+# MediCloud OS - Multi-Tenant Hospital Management SaaS System
 
-A production-ready enterprise SaaS web application built with **Java 21**, **Spring Boot 3.2**, **PostgreSQL**, **Redis**, **RabbitMQ**, **Stripe**, and **React (TypeScript + Vite + Tailwind CSS)**.
-
----
-
-## System Features & Architecture
-
-### Backend (Clean Architecture)
-- **Java 21 & Spring Boot 3.2.3**
-- **Multi-Tenant Engine**: Discriminator isolation via custom `TenantContext` & `TenantResolverFilter` with `X-Tenant-ID` header.
-- **Spring Security & JWT**: Access tokens (HMAC-SHA256) + Refresh token rotation stored in database.
-- **Role-Based Access Control (RBAC)**: `ROLE_SUPER_ADMIN`, `ROLE_ORG_OWNER`, `ROLE_ADMIN`, `ROLE_MANAGER`, `ROLE_EMPLOYEE`, `ROLE_CUSTOMER`, `ROLE_GUEST`.
-- **Database & Migrations**: PostgreSQL primary database, Flyway SQL migrations (`V1__init_core_schema.sql`).
-- **Subscription & Payment Engine**: Stripe Java SDK integration for subscriptions, checkout, and webhook handlers.
-- **Async Messaging & Auditing**: RabbitMQ topic exchanges for async audit logs & email notifications.
-- **OpenAPI 3.0 Documentation**: Swagger UI at `/swagger-ui.html`.
-
-### Frontend (React Dashboard)
-- **Vite + TypeScript + Tailwind CSS**
-- **Responsive Multi-Tenant Dashboards**: Overview metrics, Organization profile & branding, Team & RBAC management, Subscriptions matrix, CRM Deals board, Kanban project tasks, and Super Admin analytics.
+Production-ready healthcare operating system built with **Java 21**, **Spring Boot 3.2**, **PostgreSQL**, **Redis**, **RabbitMQ**, **Stripe**, and **React 18 (TypeScript + Vite + Tailwind CSS)**.
 
 ---
 
-## Directory Structure
+## Production Release Version: `v2.0.0`
 
-```
-D:\Project1\
-├── backend/
-│   ├── pom.xml
-│   ├── Dockerfile
-│   └── src/
-│       ├── main/
-│       │   ├── java/com/saas/platform/
-│       │   │   ├── SaaSApplication.java
-│       │   │   ├── common/ (Entities, DTOs, Exception Handlers)
-│       │   │   ├── infrastructure/ (Audit, Security Config, Redis, RabbitMQ, Swagger)
-│       │   │   ├── tenant/ (Tenant Context, Resolver Filter, Repositories, Controllers)
-│       │   │   ├── user/ (RBAC User Entities, Services, Controllers)
-│       │   │   ├── auth/ (JWT Provider, Login, Register, Token Rotation)
-│       │   │   ├── billing/ (Stripe Subscriptions & Invoices)
-│       │   │   └── project/ (CRM Deals & Kanban Tasks)
-│       │   └── resources/
-│       │       ├── application.yml
-│       │       ├── application-test.yml
-│       │       └── db/migration/V1__init_core_schema.sql
-└── frontend/
-    ├── package.json
-    ├── vite.config.ts
-    ├── index.html
-    └── src/
-        ├── index.css
-        ├── main.tsx
-        └── App.tsx
-```
+- **Hospital Organization**: `🏥 Ayush Health Network`
+- **Chief Medical Officer**: `Dr. Vishnu Tiwari (VT)`
+- **GitHub Repository**: [https://github.com/ayushks2k4-2602/-MediCloud-OS.git](https://github.com/ayushks2k4-2602/-MediCloud-OS.git)
 
 ---
 
-## How to Run
+## Clinical & Administrative Modules
 
-### 1. Run Backend Server
-```bash
+1. **Patient Management**: Registration (`PAT-XXXXX`), demographic details, blood group filtering, emergency contacts, insurance policies.
+2. **Doctor Directory**: 21 pre-seeded specializations (*Cardiology*, *Neurology*, *Orthopedics*, etc.), license number verification, experience years, consultation fees.
+3. **Shift Scheduling**: Morning, Afternoon, Evening, Night, and Custom shift management.
+4. **Electronic Health Records (EHR)**: SOAP clinical notes, vitals recording (BP, HR, Temp, Weight), allergies, immunizations, surgery history.
+5. **Prescription Generator**: Electronic prescription issuing with digital signature preview and print/PDF export capabilities.
+6. **ICU & Ward Bed Matrix**: Live bed allocation across ICU, General, Private, and Deluxe suites.
+7. **Hospital Billing & Insurance**: Itemized billing invoices, Stripe payment integration, insurance claim tracking.
+8. **Pharmacy Inventory**: Medicine catalog, batch numbers, stock quantity, expiry dates.
+9. **Telehealth Video Consultation**: Video room generator (`ROOM-XXXX`), doctor-patient access join tokens.
+10. **Emergency Room & Ambulance Dispatch**: ER Triage levels (`CRITICAL`, `SEVERE`), ambulance fleet dispatch.
+
+---
+
+## Installation & Local Execution
+
+### 1. Run Backend REST API Server
+```powershell
 cd D:\Project1\backend
 mvn spring-boot:run "-Dspring-boot.run.profiles=test"
 ```
-Backend will start on `http://localhost:8080` (Swagger UI: `http://localhost:8080/swagger-ui.html`).
+- **Base API**: [http://localhost:8082](http://localhost:8082)
+- **Interactive Swagger UI**: [http://localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html)
 
-### 2. Run Docker Stack (Postgres + Redis + RabbitMQ + App)
-```bash
+### 2. Run React Web Portal
+```powershell
+cd D:\Project1\frontend
+npm install
+npm run dev
+```
+- **Portal Link**: [http://localhost:3000](http://localhost:3000)
+
+---
+
+## Production Docker Deployment
+
+```powershell
 cd D:\Project1
 docker-compose up --build -d
 ```
