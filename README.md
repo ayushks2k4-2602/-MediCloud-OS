@@ -27,11 +27,10 @@ Built using **Java 21**, **Spring Boot 3.2**, **PostgreSQL**, **Redis**, **Rabbi
 - **Payment Abstraction**: Stripe Payment Gateway Abstraction Layer
 - **API Documentation**: SpringDoc OpenAPI 3 / Interactive Swagger UI
 
-### Frontend Stack
-- **Framework**: React 18, TypeScript, Vite 5.4
-- **Styling & Layout**: Vanilla CSS Design System, Responsive Glassmorphism, Tailwind CSS utilities
-- **State & HTTP**: React Hooks, Axios API Client
-- **Icons & Visuals**: Lucide React Icons
+- **Framework**: React 18, TypeScript 5.2, Vite 5.4 (12 lazy-loaded page modules)
+- **Styling & Layout**: Vanilla CSS Design System (`index.css`), CSS Custom Properties, Dark Mode, Minimal Teal Medical Theme, Mobile-First Responsive Breakpoints
+- **Architecture**: Modular Component Architecture (`components/`, `pages/`, `hooks/`, `api.ts`, `types.ts`, `constants.ts`)
+- **API Client**: Centralized Fetch Client with Automatic JWT (`Authorization: Bearer <token>`), Multi-Tenant Header (`X-Tenant-ID`), Timeout, Retry & 401 Expiration Handling
 
 ---
 
