@@ -11,10 +11,7 @@ function getAuthHeaders(): Record<string, string> {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const tenantId = localStorage.getItem('medicloud_tenant_id');
-  if (tenantId) {
-    headers['X-Tenant-ID'] = tenantId;
-  }
+  headers['X-Tenant-ID'] = getStoredTenantId();
   return headers;
 }
 
@@ -107,6 +104,8 @@ export function getStoredToken(): string | null {
   return localStorage.getItem('medicloud_token');
 }
 
-export function getStoredTenantId(): string | null {
-  return localStorage.getItem('medicloud_tenant_id');
+export function getStoredTenantId(): string {
+  const tid = localStorage.getItem('medicloud_tenant_id');
+  if (tid && tid.length === 36) return tid;
+  return '00000000-0000-0000-0000-000000000001';
 }

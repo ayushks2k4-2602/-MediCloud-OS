@@ -40,9 +40,9 @@ export function useAuth() {
       console.warn('Backend login response fallback active:', err.message);
     }
     // Fallback to active CMO workspace session if credentials not yet seeded in DB
-    const demoUser = { id: '1', email: email || 'dr.vishnu@ayushhealth.com', fullName: 'Dr. Vishnu Tiwari', role: 'Chief Medical Officer', tenantId: 'tenant-ayush-health' };
-    setAuthData('medicloud-session-token', demoUser, 'tenant-ayush-health');
-    setAuth({ token: 'medicloud-session-token', user: demoUser, tenantId: 'tenant-ayush-health', isAuthenticated: true });
+    const demoUser = { id: '1', email: email || 'dr.vishnu@ayushhealth.com', fullName: 'Dr. Vishnu Tiwari', role: 'Chief Medical Officer', tenantId: '00000000-0000-0000-0000-000000000001' };
+    setAuthData('medicloud-session-token', demoUser, '00000000-0000-0000-0000-000000000001');
+    setAuth({ token: 'medicloud-session-token', user: demoUser, tenantId: '00000000-0000-0000-0000-000000000001', isAuthenticated: true });
     return { success: true };
   }, []);
 
