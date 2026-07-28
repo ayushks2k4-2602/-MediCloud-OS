@@ -19,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/hospital")
 @RequiredArgsConstructor
-@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Specializations, Shifts, EHR, Prescriptions)")
+@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Waiting List, Reminders, EHR, Pharmacy)")
 public class HospitalController {
 
     private final HospitalService hospitalService;
@@ -80,6 +80,20 @@ public class HospitalController {
         return ResponseEntity.ok(ApiResponse.success(doctors));
     }
 
+    @PostMapping("/doctors/availability")
+    @Operation(summary = "Configure doctor weekly availability slot")
+    public ResponseEntity<ApiResponse<DoctorAvailabilityDto>> setDoctorAvailability(@Valid @RequestBody DoctorAvailabilityDto request) {
+        DoctorAvailabilityDto availability = hospitalService.setDoctorAvailability(request);
+        return new ResponseEntity<>(ApiResponse.success(availability, "Doctor availability set"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/doctors/{doctorId}/availability")
+    @Operation(summary = "Get doctor weekly availability schedule")
+    public ResponseEntity<ApiResponse<List<DoctorAvailabilityDto>>> getDoctorAvailabilities(@PathVariable UUID doctorId) {
+        List<DoctorAvailabilityDto> list = hospitalService.getDoctorAvailabilities(doctorId);
+        return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
     // SPECIALIZATIONS
     @PostMapping("/specializations")
     @Operation(summary = "Create medical specialization")
@@ -110,7 +124,7 @@ public class HospitalController {
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 
-    // APPOINTMENTS
+    // APPOINTMENTS & SCHEDULING
     @PostMapping("/appointments")
     @Operation(summary = "Schedule a doctor appointment")
     public ResponseEntity<ApiResponse<AppointmentDto>> scheduleAppointment(@Valid @RequestBody AppointmentDto request) {
@@ -118,11 +132,55 @@ public class HospitalController {
         return new ResponseEntity<>(ApiResponse.success(appointment, "Appointment scheduled"), HttpStatus.CREATED);
     }
 
+    @PutMapping("/appointments/{id}/status")
+    @Operation(summary = "Update appointment status (SCHEDULED, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW)")
+    public ResponseEntity<ApiResponse<AppointmentDto>> updateAppointmentStatus(@PathVariable UUID id, @RequestParam String status) {
+        AppointmentDto updated = hospitalService.updateAppointmentStatus(id, status);
+        return ResponseEntity.ok(ApiResponse.success(updated, "Appointment status updated"));
+    }
+
+    @PostMapping("/appointments/reschedule/{id}")
+    @Operation(summary = "Reschedule an existing appointment")
+    public ResponseEntity<ApiResponse<AppointmentDto>> rescheduleAppointment(@PathVariable UUID id, @Valid @RequestBody AppointmentDto request) {
+        AppointmentDto rescheduled = hospitalService.rescheduleAppointment(id, request);
+        return ResponseEntity.ok(ApiResponse.success(rescheduled, "Appointment rescheduled successfully"));
+    }
+
     @GetMapping("/appointments")
-    @Operation(summary = "List tenant appointments")
+    @Operation(summary = "List tenant appointments with status & calendar dates")
     public ResponseEntity<ApiResponse<PageResponse<AppointmentDto>>> getAppointments(Pageable pageable) {
         PageResponse<AppointmentDto> appointments = hospitalService.getTenantAppointments(pageable);
         return ResponseEntity.ok(ApiResponse.success(appointments));
+    }
+
+    // WAITING LIST
+    @PostMapping("/appointments/waiting-list")
+    @Operation(summary = "Add patient to appointment waiting list")
+    public ResponseEntity<ApiResponse<AppointmentWaitingListDto>> addToWaitingList(@Valid @RequestBody AppointmentWaitingListDto request) {
+        AppointmentWaitingListDto waiting = hospitalService.addToWaitingList(request);
+        return new ResponseEntity<>(ApiResponse.success(waiting, "Patient added to waiting list"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/appointments/waiting-list")
+    @Operation(summary = "List appointment waiting queue")
+    public ResponseEntity<ApiResponse<PageResponse<AppointmentWaitingListDto>>> getWaitingList(Pageable pageable) {
+        PageResponse<AppointmentWaitingListDto> waitingList = hospitalService.getWaitingList(pageable);
+        return ResponseEntity.ok(ApiResponse.success(waitingList));
+    }
+
+    // REMINDERS
+    @PostMapping("/appointments/{id}/remind")
+    @Operation(summary = "Send Email or SMS appointment reminder")
+    public ResponseEntity<ApiResponse<ReminderLogDto>> sendAppointmentReminder(@PathVariable UUID id, @RequestParam(defaultValue = "EMAIL") String channel) {
+        ReminderLogDto reminder = hospitalService.sendAppointmentReminder(id, channel);
+        return ResponseEntity.ok(ApiResponse.success(reminder, "Reminder sent successfully via " + channel));
+    }
+
+    @GetMapping("/appointments/reminders")
+    @Operation(summary = "List appointment reminder audit logs")
+    public ResponseEntity<ApiResponse<PageResponse<ReminderLogDto>>> getReminderLogs(Pageable pageable) {
+        PageResponse<ReminderLogDto> logs = hospitalService.getReminderLogs(pageable);
+        return ResponseEntity.ok(ApiResponse.success(logs));
     }
 
     // EHR RECORDS

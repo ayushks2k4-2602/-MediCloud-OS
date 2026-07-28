@@ -36,13 +36,25 @@ public class Appointment extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    @Builder.Default
-    private AppointmentStatus status = AppointmentStatus.SCHEDULED;
+    private AppointmentStatus status;
 
     @Column(name = "type", length = 30)
-    @Builder.Default
-    private String type = "IN_PERSON";
+    private String type;
 
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;
+
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+
+    @Column(name = "rescheduled_from_id")
+    private UUID rescheduledFromId;
+
+    @Column(name = "reminder_sent_email")
+    @Builder.Default
+    private Boolean reminderSentEmail = false;
+
+    @Column(name = "reminder_sent_sms")
+    @Builder.Default
+    private Boolean reminderSentSms = false;
 }

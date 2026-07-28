@@ -28,7 +28,10 @@ public class HospitalServiceImpl implements HospitalService {
     private final DoctorRepository doctorRepository;
     private final SpecializationRepository specializationRepository;
     private final ShiftRepository shiftRepository;
+    private final DoctorAvailabilityRepository doctorAvailabilityRepository;
     private final AppointmentRepository appointmentRepository;
+    private final AppointmentWaitingListRepository appointmentWaitingListRepository;
+    private final ReminderLogRepository reminderLogRepository;
     private final EhrRecordRepository ehrRecordRepository;
     private final MedicineRepository medicineRepository;
 
@@ -200,6 +203,33 @@ public class HospitalServiceImpl implements HospitalService {
 
     @Override
     @Transactional
+    public DoctorAvailabilityDto setDoctorAvailability(DoctorAvailabilityDto request) {
+        UUID tenantId = resolveTenantId();
+        DoctorAvailability availability = DoctorAvailability.builder()
+                .tenantId(tenantId)
+                .doctorId(request.getDoctorId())
+                .dayOfWeek(request.getDayOfWeek().toUpperCase())
+                .startTime(request.getStartTime())
+                .endTime(request.getEndTime())
+                .slotDurationMinutes(request.getSlotDurationMinutes() != null ? request.getSlotDurationMinutes() : 30)
+                .isActive(request.getIsActive() != null ? request.getIsActive() : true)
+                .build();
+
+        DoctorAvailability saved = doctorAvailabilityRepository.save(availability);
+        return mapDoctorAvailabilityToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DoctorAvailabilityDto> getDoctorAvailabilities(UUID doctorId) {
+        UUID tenantId = resolveTenantId();
+        return doctorAvailabilityRepository.findByTenantIdAndDoctorId(tenantId, doctorId).stream()
+                .map(this::mapDoctorAvailabilityToDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
     public AppointmentDto scheduleAppointment(AppointmentDto request) {
         UUID tenantId = resolveTenantId();
 
@@ -210,9 +240,13 @@ public class HospitalServiceImpl implements HospitalService {
                 .departmentId(request.getDepartmentId())
                 .appointmentDate(request.getAppointmentDate())
                 .timeSlot(request.getTimeSlot())
-                .status(AppointmentStatus.SCHEDULED)
+                .status(request.getStatus() != null ? request.getStatus() : AppointmentStatus.SCHEDULED)
                 .type(request.getType() != null ? request.getType() : "IN_PERSON")
                 .reason(request.getReason())
+                .cancellationReason(request.getCancellationReason())
+                .rescheduledFromId(request.getRescheduledFromId())
+                .reminderSentEmail(false)
+                .reminderSentSms(false)
                 .build();
 
         Appointment saved = appointmentRepository.save(appointment);
@@ -231,10 +265,91 @@ public class HospitalServiceImpl implements HospitalService {
     }
 
     @Override
+    @Transactional
+    public AppointmentDto rescheduleAppointment(UUID appointmentId, AppointmentDto request) {
+        Appointment oldAppt = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment", "id", appointmentId));
+
+        oldAppt.setStatus(AppointmentStatus.CANCELLED);
+        oldAppt.setCancellationReason("Rescheduled to new date: " + request.getAppointmentDate() + " " + request.getTimeSlot());
+        appointmentRepository.save(oldAppt);
+
+        request.setRescheduledFromId(oldAppt.getId());
+        return scheduleAppointment(request);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public PageResponse<AppointmentDto> getTenantAppointments(Pageable pageable) {
         UUID tenantId = resolveTenantId();
         Page<AppointmentDto> page = appointmentRepository.findByTenantId(tenantId, pageable).map(this::mapAppointmentToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public AppointmentWaitingListDto addToWaitingList(AppointmentWaitingListDto request) {
+        UUID tenantId = resolveTenantId();
+        AppointmentWaitingList waiting = AppointmentWaitingList.builder()
+                .tenantId(tenantId)
+                .patientId(request.getPatientId())
+                .doctorId(request.getDoctorId())
+                .requestedDate(request.getRequestedDate())
+                .preferredTimeSlot(request.getPreferredTimeSlot())
+                .priorityNotes(request.getPriorityNotes())
+                .status("WAITING")
+                .build();
+
+        AppointmentWaitingList saved = appointmentWaitingListRepository.save(waiting);
+        return mapWaitingToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<AppointmentWaitingListDto> getWaitingList(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<AppointmentWaitingListDto> page = appointmentWaitingListRepository.findByTenantId(tenantId, pageable).map(this::mapWaitingToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public ReminderLogDto sendAppointmentReminder(UUID appointmentId, String channel) {
+        UUID tenantId = resolveTenantId();
+        Appointment appt = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment", "id", appointmentId));
+
+        Patient patient = patientRepository.findById(appt.getPatientId())
+                .orElseThrow(() -> new ResourceNotFoundException("Patient", "id", appt.getPatientId()));
+
+        String recipient = "SMS".equalsIgnoreCase(channel) ? patient.getPhone() : patient.getEmail();
+        String message = "Reminder: Your appointment is scheduled on " + appt.getAppointmentDate() + " at " + appt.getTimeSlot() + " with Dr. Vishnu Tiwari Health Network.";
+
+        if ("SMS".equalsIgnoreCase(channel)) {
+            appt.setReminderSentSms(true);
+        } else {
+            appt.setReminderSentEmail(true);
+        }
+        appointmentRepository.save(appt);
+
+        ReminderLog log = ReminderLog.builder()
+                .tenantId(tenantId)
+                .appointmentId(appointmentId)
+                .channel(channel.toUpperCase())
+                .recipient(recipient != null ? recipient : "unknown@ayushhealth.com")
+                .message(message)
+                .status("SENT")
+                .build();
+
+        ReminderLog saved = reminderLogRepository.save(log);
+        return mapReminderToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ReminderLogDto> getReminderLogs(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<ReminderLogDto> page = reminderLogRepository.findByTenantId(tenantId, pageable).map(this::mapReminderToDto);
         return PageResponse.from(page);
     }
 
@@ -358,6 +473,18 @@ public class HospitalServiceImpl implements HospitalService {
                 .build();
     }
 
+    private DoctorAvailabilityDto mapDoctorAvailabilityToDto(DoctorAvailability a) {
+        return DoctorAvailabilityDto.builder()
+                .id(a.getId())
+                .doctorId(a.getDoctorId())
+                .dayOfWeek(a.getDayOfWeek())
+                .startTime(a.getStartTime())
+                .endTime(a.getEndTime())
+                .slotDurationMinutes(a.getSlotDurationMinutes())
+                .isActive(a.getIsActive())
+                .build();
+    }
+
     private AppointmentDto mapAppointmentToDto(Appointment a) {
         return AppointmentDto.builder()
                 .id(a.getId())
@@ -369,6 +496,34 @@ public class HospitalServiceImpl implements HospitalService {
                 .status(a.getStatus())
                 .type(a.getType())
                 .reason(a.getReason())
+                .cancellationReason(a.getCancellationReason())
+                .rescheduledFromId(a.getRescheduledFromId())
+                .reminderSentEmail(a.getReminderSentEmail())
+                .reminderSentSms(a.getReminderSentSms())
+                .build();
+    }
+
+    private AppointmentWaitingListDto mapWaitingToDto(AppointmentWaitingList w) {
+        return AppointmentWaitingListDto.builder()
+                .id(w.getId())
+                .patientId(w.getPatientId())
+                .doctorId(w.getDoctorId())
+                .requestedDate(w.getRequestedDate())
+                .preferredTimeSlot(w.getPreferredTimeSlot())
+                .priorityNotes(w.getPriorityNotes())
+                .status(w.getStatus())
+                .build();
+    }
+
+    private ReminderLogDto mapReminderToDto(ReminderLog r) {
+        return ReminderLogDto.builder()
+                .id(r.getId())
+                .appointmentId(r.getAppointmentId())
+                .channel(r.getChannel())
+                .recipient(r.getRecipient())
+                .message(r.getMessage())
+                .status(r.getStatus())
+                .sentAt(r.getSentAt())
                 .build();
     }
 

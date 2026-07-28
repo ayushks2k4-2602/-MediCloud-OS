@@ -11,7 +11,7 @@ public interface HospitalService {
     PatientDto registerPatient(PatientDto request);
     PatientDto getPatientById(UUID id);
     PageResponse<PatientDto> getTenantPatients(String search, String bloodGroup, Pageable pageable);
-    
+
     DoctorDto addDoctor(DoctorDto request);
     DoctorDto updateDoctor(UUID id, DoctorDto request);
     void deleteDoctor(UUID id);
@@ -23,9 +23,19 @@ public interface HospitalService {
     ShiftDto createShift(ShiftDto request);
     List<ShiftDto> getShifts();
 
+    DoctorAvailabilityDto setDoctorAvailability(DoctorAvailabilityDto request);
+    List<DoctorAvailabilityDto> getDoctorAvailabilities(UUID doctorId);
+
     AppointmentDto scheduleAppointment(AppointmentDto request);
     AppointmentDto updateAppointmentStatus(UUID appointmentId, String status);
+    AppointmentDto rescheduleAppointment(UUID appointmentId, AppointmentDto request);
     PageResponse<AppointmentDto> getTenantAppointments(Pageable pageable);
+
+    AppointmentWaitingListDto addToWaitingList(AppointmentWaitingListDto request);
+    PageResponse<AppointmentWaitingListDto> getWaitingList(Pageable pageable);
+
+    ReminderLogDto sendAppointmentReminder(UUID appointmentId, String channel);
+    PageResponse<ReminderLogDto> getReminderLogs(Pageable pageable);
 
     EhrRecordDto saveEhrRecord(EhrRecordDto request);
     PageResponse<EhrRecordDto> getPatientEhrRecords(UUID patientId, Pageable pageable);

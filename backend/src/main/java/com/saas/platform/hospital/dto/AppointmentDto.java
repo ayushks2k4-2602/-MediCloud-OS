@@ -35,4 +35,8 @@ public class AppointmentDto {
     private AppointmentStatus status;
     private String type;
     private String reason;
+    private String cancellationReason;
+    private UUID rescheduledFromId;
+    private Boolean reminderSentEmail;
+    private Boolean reminderSentSms;
 }
