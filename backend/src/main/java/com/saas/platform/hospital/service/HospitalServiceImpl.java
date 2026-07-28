@@ -2,16 +2,9 @@ package com.saas.platform.hospital.service;
 
 import com.saas.platform.common.dto.PageResponse;
 import com.saas.platform.common.exception.ResourceNotFoundException;
-import com.saas.platform.hospital.dto.AppointmentDto;
-import com.saas.platform.hospital.dto.MedicineDto;
-import com.saas.platform.hospital.dto.PatientDto;
-import com.saas.platform.hospital.entity.Appointment;
-import com.saas.platform.hospital.entity.AppointmentStatus;
-import com.saas.platform.hospital.entity.Medicine;
-import com.saas.platform.hospital.entity.Patient;
-import com.saas.platform.hospital.repository.AppointmentRepository;
-import com.saas.platform.hospital.repository.MedicineRepository;
-import com.saas.platform.hospital.repository.PatientRepository;
+import com.saas.platform.hospital.dto.*;
+import com.saas.platform.hospital.entity.*;
+import com.saas.platform.hospital.repository.*;
 import com.saas.platform.tenant.context.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,15 +20,26 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class HospitalServiceImpl implements HospitalService {
 
+    private static final UUID DEFAULT_TENANT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
     private final PatientRepository patientRepository;
+    private final DoctorRepository doctorRepository;
     private final AppointmentRepository appointmentRepository;
+    private final MedicalRecordRepository medicalRecordRepository;
     private final MedicineRepository medicineRepository;
+
+    private UUID resolveTenantId() {
+        UUID tenantId = TenantContext.getTenantId();
+        return tenantId != null ? tenantId : DEFAULT_TENANT_ID;
+    }
 
     @Override
     @Transactional
     public PatientDto registerPatient(PatientDto request) {
-        UUID tenantId = TenantContext.getTenantId();
-        String patientCode = "PAT-" + System.currentTimeMillis() % 100000;
+        UUID tenantId = resolveTenantId();
+        String patientCode = request.getPatientCode() != null && !request.getPatientCode().isBlank() 
+                ? request.getPatientCode() 
+                : "PAT-" + (System.currentTimeMillis() % 100000);
 
         Patient patient = Patient.builder()
                 .tenantId(tenantId)
@@ -68,16 +72,77 @@ public class HospitalServiceImpl implements HospitalService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<PatientDto> getTenantPatients(Pageable pageable) {
-        UUID tenantId = TenantContext.getTenantId();
-        Page<PatientDto> page = patientRepository.findByTenantId(tenantId, pageable).map(this::mapPatientToDto);
+    public PageResponse<PatientDto> getTenantPatients(String search, String bloodGroup, Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+        String bgParam = (bloodGroup != null && !bloodGroup.isBlank()) ? bloodGroup.trim() : null;
+
+        Page<PatientDto> page = patientRepository.findByTenantIdWithFilters(tenantId, searchParam, bgParam, pageable)
+                .map(this::mapPatientToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public DoctorDto addDoctor(DoctorDto request) {
+        UUID tenantId = resolveTenantId();
+        Doctor doctor = Doctor.builder()
+                .tenantId(tenantId)
+                .userId(request.getUserId() != null ? request.getUserId() : UUID.randomUUID())
+                .departmentId(request.getDepartmentId())
+                .specialization(request.getSpecialization())
+                .qualification(request.getQualification())
+                .consultationFee(request.getConsultationFee())
+                .licenseNumber(request.getLicenseNumber())
+                .isAvailable(request.getIsAvailable() != null ? request.getIsAvailable() : true)
+                .build();
+
+        Doctor saved = doctorRepository.save(doctor);
+        log.info("Doctor registered: id={}, license={}", saved.getId(), saved.getLicenseNumber());
+        return mapDoctorToDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public DoctorDto updateDoctor(UUID id, DoctorDto request) {
+        Doctor doctor = doctorRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor", "id", id));
+
+        doctor.setSpecialization(request.getSpecialization());
+        doctor.setQualification(request.getQualification());
+        doctor.setConsultationFee(request.getConsultationFee());
+        doctor.setLicenseNumber(request.getLicenseNumber());
+        if (request.getIsAvailable() != null) {
+            doctor.setIsAvailable(request.getIsAvailable());
+        }
+
+        Doctor updated = doctorRepository.save(doctor);
+        return mapDoctorToDto(updated);
+    }
+
+    @Override
+    @Transactional
+    public void deleteDoctor(UUID id) {
+        Doctor doctor = doctorRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor", "id", id));
+        doctorRepository.delete(doctor);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<DoctorDto> getTenantDoctors(String search, Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        String searchParam = (search != null && !search.isBlank()) ? search.trim() : null;
+
+        Page<DoctorDto> page = doctorRepository.findByTenantIdWithFilters(tenantId, searchParam, pageable)
+                .map(this::mapDoctorToDto);
         return PageResponse.from(page);
     }
 
     @Override
     @Transactional
     public AppointmentDto scheduleAppointment(AppointmentDto request) {
-        UUID tenantId = TenantContext.getTenantId();
+        UUID tenantId = resolveTenantId();
 
         Appointment appointment = Appointment.builder()
                 .tenantId(tenantId)
@@ -110,15 +175,48 @@ public class HospitalServiceImpl implements HospitalService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<AppointmentDto> getTenantAppointments(Pageable pageable) {
-        UUID tenantId = TenantContext.getTenantId();
+        UUID tenantId = resolveTenantId();
         Page<AppointmentDto> page = appointmentRepository.findByTenantId(tenantId, pageable).map(this::mapAppointmentToDto);
         return PageResponse.from(page);
     }
 
     @Override
     @Transactional
+    public MedicalRecordDto createMedicalRecord(MedicalRecordDto request) {
+        UUID tenantId = resolveTenantId();
+
+        MedicalRecord record = MedicalRecord.builder()
+                .tenantId(tenantId)
+                .patientId(request.getPatientId())
+                .doctorId(request.getDoctorId())
+                .appointmentId(request.getAppointmentId())
+                .symptoms(request.getSymptoms())
+                .diagnosis(request.getDiagnosis())
+                .vitalBp(request.getVitalBp())
+                .vitalHeartRate(request.getVitalHeartRate())
+                .vitalTemp(request.getVitalTemp())
+                .vitalWeight(request.getVitalWeight())
+                .doctorNotes(request.getDoctorNotes())
+                .build();
+
+        MedicalRecord saved = medicalRecordRepository.save(record);
+        log.info("Medical record created: id={}", saved.getId());
+        return mapMedicalRecordToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<MedicalRecordDto> getPatientMedicalRecords(UUID patientId, Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<MedicalRecordDto> page = medicalRecordRepository.findByTenantIdAndPatientId(tenantId, patientId, pageable)
+                .map(this::mapMedicalRecordToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
     public MedicineDto addMedicine(MedicineDto request) {
-        UUID tenantId = TenantContext.getTenantId();
+        UUID tenantId = resolveTenantId();
         Medicine medicine = Medicine.builder()
                 .tenantId(tenantId)
                 .name(request.getName())
@@ -138,7 +236,7 @@ public class HospitalServiceImpl implements HospitalService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<MedicineDto> getMedicines(Pageable pageable) {
-        UUID tenantId = TenantContext.getTenantId();
+        UUID tenantId = resolveTenantId();
         Page<MedicineDto> page = medicineRepository.findByTenantId(tenantId, pageable).map(this::mapMedicineToDto);
         return PageResponse.from(page);
     }
@@ -161,6 +259,19 @@ public class HospitalServiceImpl implements HospitalService {
                 .build();
     }
 
+    private DoctorDto mapDoctorToDto(Doctor d) {
+        return DoctorDto.builder()
+                .id(d.getId())
+                .userId(d.getUserId())
+                .departmentId(d.getDepartmentId())
+                .specialization(d.getSpecialization())
+                .qualification(d.getQualification())
+                .consultationFee(d.getConsultationFee())
+                .licenseNumber(d.getLicenseNumber())
+                .isAvailable(d.getIsAvailable())
+                .build();
+    }
+
     private AppointmentDto mapAppointmentToDto(Appointment a) {
         return AppointmentDto.builder()
                 .id(a.getId())
@@ -172,6 +283,22 @@ public class HospitalServiceImpl implements HospitalService {
                 .status(a.getStatus())
                 .type(a.getType())
                 .reason(a.getReason())
+                .build();
+    }
+
+    private MedicalRecordDto mapMedicalRecordToDto(MedicalRecord m) {
+        return MedicalRecordDto.builder()
+                .id(m.getId())
+                .patientId(m.getPatientId())
+                .doctorId(m.getDoctorId())
+                .appointmentId(m.getAppointmentId())
+                .symptoms(m.getSymptoms())
+                .diagnosis(m.getDiagnosis())
+                .vitalBp(m.getVitalBp())
+                .vitalHeartRate(m.getVitalHeartRate())
+                .vitalTemp(m.getVitalTemp())
+                .vitalWeight(m.getVitalWeight())
+                .doctorNotes(m.getDoctorNotes())
                 .build();
     }
 

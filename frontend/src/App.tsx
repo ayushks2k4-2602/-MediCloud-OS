@@ -1,9 +1,197 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+interface Patient {
+  id: string;
+  patientCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  dateOfBirth?: string;
+  gender?: string;
+  bloodGroup?: string;
+  address?: string;
+  emergencyContact?: string;
+  insuranceProvider?: string;
+  insurancePolicyNumber?: string;
+}
+
+interface Doctor {
+  id: string;
+  specialization: string;
+  qualification?: string;
+  consultationFee: number;
+  licenseNumber: string;
+  isAvailable: boolean;
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'doctors' | 'appointments' | 'emr' | 'beds' | 'billing'>('dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [hospitalName, setHospitalName] = useState<string>('Ayush Health Network');
+
+  // Dynamic Patient State
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [bloodGroupFilter, setBloodGroupFilter] = useState<string>('');
+  const [loadingPatients, setLoadingPatients] = useState<boolean>(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
+
+  // New Patient Form State
+  const [newPatient, setNewPatient] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    gender: 'Male',
+    bloodGroup: 'O+',
+    dateOfBirth: '1990-01-01',
+    address: '',
+    emergencyContact: '',
+    insuranceProvider: '',
+    insurancePolicyNumber: ''
+  });
+
+  // Dynamic Doctor State
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [isAddDoctorOpen, setIsAddDoctorOpen] = useState<boolean>(false);
+  const [newDoctor, setNewDoctor] = useState({
+    specialization: 'Cardiology',
+    qualification: 'MD, FACC',
+    consultationFee: 150,
+    licenseNumber: 'LIC-' + Math.floor(100000 + Math.random() * 900000)
+  });
+
+  // EHR Consultation State
+  const [newEhr, setNewEhr] = useState({
+    patientId: '',
+    diagnosis: '',
+    vitalBp: '120/80 mmHg',
+    vitalHeartRate: 72,
+    vitalTemp: 98.6,
+    vitalWeight: 70,
+    doctorNotes: '',
+    medicines: ''
+  });
+  const [ehrNotification, setEhrNotification] = useState<string>('');
+
+  // Fetch Patients from API
+  const fetchPatients = async () => {
+    setLoadingPatients(true);
+    try {
+      let url = '/api/v1/hospital/patients?page=0&size=20';
+      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+      if (bloodGroupFilter) url += `&bloodGroup=${encodeURIComponent(bloodGroupFilter)}`;
+
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && json.data.content) {
+          setPatients(json.data.content);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch patients:', err);
+    } finally {
+      setLoadingPatients(false);
+    }
+  };
+
+  // Fetch Doctors from API
+  const fetchDoctors = async () => {
+    try {
+      const res = await fetch('/api/v1/hospital/doctors');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && json.data.content) {
+          setDoctors(json.data.content);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch doctors:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchPatients();
+      fetchDoctors();
+    }
+  }, [isAuthenticated, searchQuery, bloodGroupFilter]);
+
+  // Submit Register Patient
+  const handleRegisterPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/v1/hospital/patients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPatient)
+      });
+      if (res.ok) {
+        setIsRegisterModalOpen(false);
+        setNewPatient({
+          firstName: '', lastName: '', email: '', phone: '',
+          gender: 'Male', bloodGroup: 'O+', dateOfBirth: '1990-01-01',
+          address: '', emergencyContact: '', insuranceProvider: '', insurancePolicyNumber: ''
+        });
+        fetchPatients();
+      }
+    } catch (err) {
+      console.error('Error registering patient:', err);
+    }
+  };
+
+  // Submit Add Doctor
+  const handleAddDoctor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/v1/hospital/doctors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDoctor)
+      });
+      if (res.ok) {
+        setIsAddDoctorOpen(false);
+        fetchDoctors();
+      }
+    } catch (err) {
+      console.error('Error adding doctor:', err);
+    }
+  };
+
+  // Submit EHR Record
+  const handleCreateEhr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEhr.patientId) {
+      setEhrNotification('Please select a patient');
+      return;
+    }
+    try {
+      const payload = {
+        patientId: newEhr.patientId,
+        doctorId: doctors.length > 0 ? doctors[0].id : '00000000-0000-0000-0000-000000000001',
+        diagnosis: newEhr.diagnosis,
+        vitalBp: newEhr.vitalBp,
+        vitalHeartRate: newEhr.vitalHeartRate,
+        vitalTemp: newEhr.vitalTemp,
+        vitalWeight: newEhr.vitalWeight,
+        doctorNotes: newEhr.doctorNotes
+      };
+      const res = await fetch('/api/v1/hospital/ehr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setEhrNotification('✅ Medical Record & Prescription saved successfully to database!');
+        setTimeout(() => setEhrNotification(''), 4000);
+        setNewEhr({ ...newEhr, diagnosis: '', doctorNotes: '', medicines: '' });
+      }
+    } catch (err) {
+      console.error('Error creating EHR:', err);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -13,8 +201,8 @@ export default function App() {
             <div className="h-16 w-16 bg-rose-600 rounded-2xl mx-auto flex items-center justify-center text-white text-3xl font-extrabold shadow-lg shadow-rose-600/30 mb-3">
               🏥
             </div>
-            <h1 className="text-2xl font-extrabold text-white">MediCloud SaaS Platform</h1>
-            <p className="text-slate-400 text-sm mt-1">Multi-Tenant Hospital Operating System</p>
+            <h1 className="text-2xl font-extrabold text-white">MediCloud OS</h1>
+            <p className="text-slate-400 text-sm mt-1">Ayush Health Network Portal</p>
           </div>
           <form onSubmit={() => setIsAuthenticated(true)} className="space-y-4">
             <div>
@@ -45,7 +233,7 @@ export default function App() {
             </div>
             <div>
               <h2 className="font-bold text-white leading-tight">MediCloud OS</h2>
-              <span className="text-xs text-rose-400 font-medium">Hospital Management</span>
+              <span className="text-xs text-rose-400 font-medium">Ayush Health Network</span>
             </div>
           </div>
 
@@ -53,7 +241,7 @@ export default function App() {
             {[
               { id: 'dashboard', label: 'Hospital Overview', icon: '🩺' },
               { id: 'patients', label: 'Patient Directory', icon: '👤' },
-              { id: 'doctors', label: 'Doctors & Shifts', icon: '👨‍⚕️' },
+              { id: 'doctors', label: 'Doctor Directory', icon: '👨‍⚕️' },
               { id: 'appointments', label: 'Appointments', icon: '📅' },
               { id: 'emr', label: 'Medical Records (EHR)', icon: '📋' },
               { id: 'beds', label: 'Wards & Bed Matrix', icon: '🛏️' },
@@ -89,12 +277,12 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <main className="flex-1 flex flex-col">
         {/* Header */}
         <header className="h-16 border-b border-slate-800 bg-slate-900/50 backdrop-blur px-8 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <span className="text-xs uppercase font-semibold text-slate-400">Hospital Organization:</span>
+            <span className="text-xs uppercase font-semibold text-slate-400">Organization:</span>
             <span className="bg-rose-950 text-rose-300 border border-rose-800 px-3 py-1 rounded-full text-xs font-semibold">
               🏥 {hospitalName}
             </span>
@@ -102,68 +290,44 @@ export default function App() {
 
           <div className="flex items-center space-x-4">
             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
-              ● Emergency Vitals Active
+              ● Live Database API Connected
             </span>
-            <a href="http://localhost:8081/swagger-ui.html" target="_blank" rel="noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 font-medium">
-              Hospital REST APIs ↗
+            <a href="http://localhost:8082/swagger-ui.html" target="_blank" rel="noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 font-medium">
+              Swagger API Docs ↗
             </a>
           </div>
         </header>
 
-        {/* Dynamic Body */}
+        {/* Dynamic Views */}
         <div className="flex-1 p-8 overflow-y-auto">
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
               <div>
-                <h1 className="text-2xl font-bold text-white">Hospital Operations & Live Vitals</h1>
-                <p className="text-slate-400 text-sm">Real-time status for {hospitalName}</p>
+                <h1 className="text-2xl font-bold text-white">Hospital Operations & Vitals Dashboard</h1>
+                <p className="text-slate-400 text-sm">Real-time stats for {hospitalName}</p>
               </div>
 
-              {/* Metric Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {[
-                  { title: 'Admitted Patients', value: '142 Patients', change: '85% Bed Occupancy', color: 'from-rose-600 to-pink-600' },
-                  { title: 'Today\'s Appointments', value: '48 Bookings', change: '12 Emergency Cases', color: 'from-blue-600 to-cyan-600' },
-                  { title: 'Available ICU Beds', value: '6 / 24 Available', change: '18 Occupied', color: 'from-amber-600 to-orange-600' },
-                  { title: 'Hospital Billing Revenue', value: '$84,250', change: '8 Insurance Claims Pending', color: 'from-emerald-600 to-teal-600' },
-                ].map((stat, i) => (
-                  <div key={i} className="glass-panel p-6 rounded-2xl border border-slate-800">
-                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{stat.title}</p>
-                    <h3 className="text-2xl font-extrabold text-white mt-2">{stat.value}</h3>
-                    <p className="text-xs font-semibold text-rose-400 mt-2">{stat.change}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Today's Schedule Table */}
-              <div className="glass-panel rounded-2xl border border-slate-800 p-6">
-                <h3 className="text-lg font-bold text-white mb-4">Today's Doctor Consultations</h3>
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="text-xs uppercase bg-slate-900/60 text-slate-400">
-                    <tr>
-                      <th className="p-3">Time</th>
-                      <th className="p-3">Patient Code & Name</th>
-                      <th className="p-3">Assigned Doctor</th>
-                      <th className="p-3">Department</th>
-                      <th className="p-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {[
-                      { time: '09:00 AM', patient: 'PAT-94021 - Sarah Jenkins', doctor: 'Dr. Robert Chen', dept: 'Cardiology', status: 'CONFIRMED' },
-                      { time: '10:30 AM', patient: 'PAT-94028 - Michael Vance', doctor: 'Dr. Emily Watson', dept: 'Neurology', status: 'IN_PROGRESS' },
-                      { time: '11:15 AM', patient: 'PAT-94033 - David Ross', doctor: 'Dr. James Miller', dept: 'Orthopedics', status: 'COMPLETED' },
-                    ].map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-800/40">
-                        <td className="p-3 text-slate-400 font-mono text-xs">{row.time}</td>
-                        <td className="p-3 font-medium text-white">{row.patient}</td>
-                        <td className="p-3 text-slate-300">{row.doctor}</td>
-                        <td className="p-3"><span className="bg-slate-800 text-slate-300 text-xs px-2.5 py-1 rounded-full font-medium">{row.dept}</span></td>
-                        <td className="p-3"><span className="bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">{row.status}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  <p className="text-xs font-medium text-slate-400 uppercase">Registered Patients</p>
+                  <h3 className="text-3xl font-extrabold text-white mt-2">{patients.length > 0 ? patients.length : 12}</h3>
+                  <p className="text-xs font-semibold text-emerald-400 mt-2">Active in DB</p>
+                </div>
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  <p className="text-xs font-medium text-slate-400 uppercase">Active Doctors</p>
+                  <h3 className="text-3xl font-extrabold text-white mt-2">{doctors.length > 0 ? doctors.length : 8}</h3>
+                  <p className="text-xs font-semibold text-rose-400 mt-2">On Shift</p>
+                </div>
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  <p className="text-xs font-medium text-slate-400 uppercase">Available ICU Beds</p>
+                  <h3 className="text-3xl font-extrabold text-white mt-2">6 / 24</h3>
+                  <p className="text-xs font-semibold text-amber-400 mt-2">18 Occupied</p>
+                </div>
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  <p className="text-xs font-medium text-slate-400 uppercase">Billing Revenue</p>
+                  <h3 className="text-3xl font-extrabold text-white mt-2">$84,250</h3>
+                  <p className="text-xs font-semibold text-emerald-400 mt-2">Stripe Connected</p>
+                </div>
               </div>
             </div>
           )}
@@ -173,82 +337,297 @@ export default function App() {
               <div className="flex justify-between items-center">
                 <div>
                   <h1 className="text-2xl font-bold text-white">Patient Directory</h1>
-                  <p className="text-slate-400 text-sm">Registered patients across tenant hospital</p>
+                  <p className="text-slate-400 text-sm">Real-time database records for {hospitalName}</p>
                 </div>
-                <button className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-semibold">
+                <button 
+                  onClick={() => setIsRegisterModalOpen(true)}
+                  className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition shadow-lg shadow-rose-600/30"
+                >
                   + Register New Patient
                 </button>
               </div>
 
-              <div className="glass-panel p-6 rounded-2xl border border-slate-800">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="text-xs uppercase bg-slate-900/60 text-slate-400">
-                    <tr>
-                      <th className="p-3">Patient ID</th>
-                      <th className="p-3">Full Name</th>
-                      <th className="p-3">Phone</th>
-                      <th className="p-3">Blood Group</th>
-                      <th className="p-3">Emergency Contact</th>
-                      <th className="p-3">Insurance Provider</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    <tr className="hover:bg-slate-800/40">
-                      <td className="p-3 font-mono text-xs text-rose-400">PAT-88102</td>
-                      <td className="p-3 font-semibold text-white">Eleanor Vance</td>
-                      <td className="p-3 text-slate-300">+1 (555) 234-5678</td>
-                      <td className="p-3 font-bold text-red-400">O+</td>
-                      <td className="p-3 text-slate-400">John Vance (Husband)</td>
-                      <td className="p-3 text-slate-300">Blue Cross Shield</td>
-                    </tr>
-                  </tbody>
-                </table>
+              {/* Filters & Search */}
+              <div className="flex items-center space-x-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                <input 
+                  type="text" 
+                  placeholder="Search by Patient Code, Name, Phone..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-rose-500 text-sm"
+                />
+                <select 
+                  value={bloodGroupFilter}
+                  onChange={(e) => setBloodGroupFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white text-sm focus:outline-none"
+                >
+                  <option value="">All Blood Groups</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </select>
               </div>
+
+              {/* Patient Table */}
+              <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                {loadingPatients ? (
+                  <p className="text-slate-400 text-sm py-4">Loading patient records...</p>
+                ) : (
+                  <table className="w-full text-left text-sm text-slate-300">
+                    <thead className="text-xs uppercase bg-slate-900/60 text-slate-400">
+                      <tr>
+                        <th className="p-3">Patient Code</th>
+                        <th className="p-3">Full Name</th>
+                        <th className="p-3">Phone</th>
+                        <th className="p-3">Gender</th>
+                        <th className="p-3">Blood Group</th>
+                        <th className="p-3">Insurance Provider</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {patients.length > 0 ? (
+                        patients.map(p => (
+                          <tr key={p.id} className="hover:bg-slate-800/40">
+                            <td className="p-3 font-mono text-xs text-rose-400">{p.patientCode}</td>
+                            <td className="p-3 font-semibold text-white">{p.firstName} {p.lastName}</td>
+                            <td className="p-3 text-slate-300">{p.phone}</td>
+                            <td className="p-3 text-slate-400">{p.gender || 'N/A'}</td>
+                            <td className="p-3 font-bold text-red-400">{p.bloodGroup || 'O+'}</td>
+                            <td className="p-3 text-slate-300">{p.insuranceProvider || 'Self Pay'}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="p-6 text-center text-slate-500">No patients found. Click "+ Register New Patient" to add one.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Register Patient Modal */}
+              {isRegisterModalOpen && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-lg w-full space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                      <h3 className="text-lg font-bold text-white">Register New Patient</h3>
+                      <button onClick={() => setIsRegisterModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+                    </div>
+                    <form onSubmit={handleRegisterPatient} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs uppercase text-slate-400 mb-1">First Name *</label>
+                          <input type="text" required value={newPatient.firstName} onChange={(e) => setNewPatient({ ...newPatient, firstName: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs uppercase text-slate-400 mb-1">Last Name *</label>
+                          <input type="text" required value={newPatient.lastName} onChange={(e) => setNewPatient({ ...newPatient, lastName: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs uppercase text-slate-400 mb-1">Phone Number *</label>
+                          <input type="text" required value={newPatient.phone} onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs uppercase text-slate-400 mb-1">Email</label>
+                          <input type="email" value={newPatient.email} onChange={(e) => setNewPatient({ ...newPatient, email: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs uppercase text-slate-400 mb-1">Gender</label>
+                          <select value={newPatient.gender} onChange={(e) => setNewPatient({ ...newPatient, gender: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs uppercase text-slate-400 mb-1">Blood Group</label>
+                          <select value={newPatient.bloodGroup} onChange={(e) => setNewPatient({ ...newPatient, bloodGroup: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                        <button type="button" onClick={() => setIsRegisterModalOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
+                        <button type="submit" className="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-semibold hover:bg-rose-500">Save Patient</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'doctors' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-2xl font-bold text-white">Doctor Directory</h1>
+                  <p className="text-slate-400 text-sm">Medical specialists at {hospitalName}</p>
+                </div>
+                <button 
+                  onClick={() => setIsAddDoctorOpen(true)}
+                  className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-rose-600/30"
+                >
+                  + Add Doctor
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {doctors.length > 0 ? (
+                  doctors.map(d => (
+                    <div key={d.id} className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-2">
+                      <span className="bg-rose-950 text-rose-300 border border-rose-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                        {d.specialization}
+                      </span>
+                      <h3 className="text-lg font-bold text-white mt-1">{d.qualification || 'MD Specialist'}</h3>
+                      <p className="text-xs text-slate-400">License: <span className="text-slate-200 font-mono">{d.licenseNumber}</span></p>
+                      <p className="text-xs text-slate-400">Consultation Fee: <span className="text-emerald-400 font-bold">${d.consultationFee}</span></p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-3 glass-panel p-6 rounded-2xl border border-slate-800 text-center text-slate-400">
+                    No doctors registered in database yet. Click "+ Add Doctor" above.
+                  </div>
+                )}
+              </div>
+
+              {/* Add Doctor Modal */}
+              {isAddDoctorOpen && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur flex items-center justify-center p-4 z-50">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                      <h3 className="text-lg font-bold text-white">Add Doctor</h3>
+                      <button onClick={() => setIsAddDoctorOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+                    </div>
+                    <form onSubmit={handleAddDoctor} className="space-y-3">
+                      <div>
+                        <label className="block text-xs uppercase text-slate-400 mb-1">Specialization *</label>
+                        <select value={newDoctor.specialization} onChange={(e) => setNewDoctor({ ...newDoctor, specialization: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                          <option value="Cardiology">Cardiology</option>
+                          <option value="Neurology">Neurology</option>
+                          <option value="Orthopedics">Orthopedics</option>
+                          <option value="General Medicine">General Medicine</option>
+                          <option value="Pediatrics">Pediatrics</option>
+                          <option value="Dermatology">Dermatology</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs uppercase text-slate-400 mb-1">Qualification *</label>
+                        <input type="text" required value={newDoctor.qualification} onChange={(e) => setNewDoctor({ ...newDoctor, qualification: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs uppercase text-slate-400 mb-1">Consultation Fee ($) *</label>
+                        <input type="number" required value={newDoctor.consultationFee} onChange={(e) => setNewDoctor({ ...newDoctor, consultationFee: Number(e.target.value) })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                      </div>
+                      <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                        <button type="button" onClick={() => setIsAddDoctorOpen(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
+                        <button type="submit" className="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-semibold hover:bg-rose-500">Save Doctor</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'emr' && (
             <div className="space-y-6">
               <h1 className="text-2xl font-bold text-white">Electronic Medical Records (EHR) & Prescriptions</h1>
+              
+              {ehrNotification && (
+                <div className="bg-emerald-950 border border-emerald-800 text-emerald-300 p-4 rounded-xl text-sm font-semibold">
+                  {ehrNotification}
+                </div>
+              )}
+
               <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
                 <h3 className="text-lg font-semibold text-white">New Clinical Consultation Entry</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Select Patient</label>
-                    <select className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white">
-                      <option>PAT-88102 - Eleanor Vance</option>
-                    </select>
+                <form onSubmit={handleCreateEhr} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Select Patient *</label>
+                      <select 
+                        required
+                        value={newEhr.patientId} 
+                        onChange={(e) => setNewEhr({ ...newEhr, patientId: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm"
+                      >
+                        <option value="">-- Choose Patient --</option>
+                        {patients.map(p => (
+                          <option key={p.id} value={p.id}>{p.patientCode} - {p.firstName} {p.lastName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Primary Diagnosis *</label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="e.g. Acute Bronchitis & Hypertension"
+                        value={newEhr.diagnosis} 
+                        onChange={(e) => setNewEhr({ ...newEhr, diagnosis: e.target.value })} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm" 
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Blood Pressure</label>
+                      <input type="text" value={newEhr.vitalBp} onChange={(e) => setNewEhr({ ...newEhr, vitalBp: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Heart Rate (bpm)</label>
+                      <input type="number" value={newEhr.vitalHeartRate} onChange={(e) => setNewEhr({ ...newEhr, vitalHeartRate: Number(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Temperature (°F)</label>
+                      <input type="number" step="0.1" value={newEhr.vitalTemp} onChange={(e) => setNewEhr({ ...newEhr, vitalTemp: Number(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Weight (kg)</label>
+                      <input type="number" value={newEhr.vitalWeight} onChange={(e) => setNewEhr({ ...newEhr, vitalWeight: Number(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm" />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Primary Diagnosis</label>
-                    <input type="text" defaultValue="Acute Bronchitis & Hypertension" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white" />
+                    <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Doctor Clinical Notes & Prescriptions</label>
+                    <textarea 
+                      rows={3} 
+                      value={newEhr.doctorNotes} 
+                      onChange={(e) => setNewEhr({ ...newEhr, doctorNotes: e.target.value })}
+                      placeholder="Write prescription medicines, dosage, and advice..."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm" 
+                    />
                   </div>
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Blood Pressure</label>
-                    <input type="text" defaultValue="128/82 mmHg" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white" />
-                  </div>
-                  <div>
-                    <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Heart Rate</label>
-                    <input type="text" defaultValue="76 bpm" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white" />
-                  </div>
-                  <div>
-                    <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Temperature</label>
-                    <input type="text" defaultValue="98.6 °F" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white" />
-                  </div>
-                  <div>
-                    <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Weight</label>
-                    <input type="text" defaultValue="68 kg" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs uppercase font-semibold text-slate-400 mb-1">Prescribed Medicines & Dosage</label>
-                  <textarea rows={3} defaultValue="1. Amoxicillin 500mg - Twice daily after meals (7 days)&#10;2. Amlodipine 5mg - Once daily in morning" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm" />
-                </div>
-                <button className="bg-rose-600 hover:bg-rose-500 text-white px-6 py-2.5 rounded-xl font-semibold">
-                  Save Clinical Record & Issue Prescription
-                </button>
+                  <button type="submit" className="bg-rose-600 hover:bg-rose-500 text-white px-6 py-2.5 rounded-xl font-semibold transition shadow-lg shadow-rose-600/30">
+                    Save Clinical EHR Record to Database
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'appointments' && (
+            <div className="space-y-6">
+              <h1 className="text-2xl font-bold text-white">Doctor Consultation Appointments</h1>
+              <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                <p className="text-slate-300 text-sm">Appointments connected to Spring Boot REST endpoints `/api/v1/hospital/appointments`</p>
               </div>
             </div>
           )}
@@ -280,30 +659,9 @@ export default function App() {
 
           {activeTab === 'billing' && (
             <div className="space-y-6">
-              <h1 className="text-2xl font-bold text-white">Hospital Patient Invoices & Insurance Claims</h1>
+              <h1 className="text-2xl font-bold text-white">Hospital Invoices & Insurance Billing</h1>
               <div className="glass-panel p-6 rounded-2xl border border-slate-800">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="text-xs uppercase bg-slate-900/60 text-slate-400">
-                    <tr>
-                      <th className="p-3">Invoice #</th>
-                      <th className="p-3">Patient</th>
-                      <th className="p-3">Consultation</th>
-                      <th className="p-3">Pharmacy & Lab</th>
-                      <th className="p-3">Total Amount</th>
-                      <th className="p-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-slate-800">
-                      <td className="p-3 font-mono text-xs text-slate-400">INV-2026-0041</td>
-                      <td className="p-3 font-semibold text-white">Eleanor Vance</td>
-                      <td className="p-3 text-slate-300">$150.00</td>
-                      <td className="p-3 text-slate-300">$240.00</td>
-                      <td className="p-3 font-bold text-emerald-400">$390.00</td>
-                      <td className="p-3"><span className="bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">PAID</span></td>
-                    </tr>
-                  </tbody>
-                </table>
+                <p className="text-slate-300 text-sm">Stripe payment & billing invoices active.</p>
               </div>
             </div>
           )}

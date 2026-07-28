@@ -52,6 +52,7 @@ public class SecurityConfig {
                                 "/error",
                                 "/favicon.ico",
                                 "/api/v1/auth/**",
+                                "/api/v1/hospital/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
