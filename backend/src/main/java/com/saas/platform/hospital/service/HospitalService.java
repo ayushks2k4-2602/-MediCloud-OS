@@ -37,6 +37,18 @@ public interface HospitalService {
     ReminderLogDto sendAppointmentReminder(UUID appointmentId, String channel);
     PageResponse<ReminderLogDto> getReminderLogs(Pageable pageable);
 
+    InvoiceDto createInvoice(InvoiceDto request);
+    PageResponse<InvoiceDto> getInvoices(Pageable pageable);
+
+    PaymentDto processPayment(PaymentDto request);
+    PageResponse<PaymentDto> getPayments(Pageable pageable);
+
+    InsuranceProviderDto addInsuranceProvider(InsuranceProviderDto request);
+    List<InsuranceProviderDto> getInsuranceProviders();
+
+    InsuranceClaimDto submitInsuranceClaim(InsuranceClaimDto request);
+    PageResponse<InsuranceClaimDto> getInsuranceClaims(Pageable pageable);
+
     EhrRecordDto saveEhrRecord(EhrRecordDto request);
     PageResponse<EhrRecordDto> getPatientEhrRecords(UUID patientId, Pageable pageable);
 

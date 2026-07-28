@@ -13,6 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -32,6 +34,10 @@ public class HospitalServiceImpl implements HospitalService {
     private final AppointmentRepository appointmentRepository;
     private final AppointmentWaitingListRepository appointmentWaitingListRepository;
     private final ReminderLogRepository reminderLogRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
+    private final InsuranceProviderRepository insuranceProviderRepository;
+    private final InsuranceClaimRepository insuranceClaimRepository;
     private final EhrRecordRepository ehrRecordRepository;
     private final MedicineRepository medicineRepository;
 
@@ -355,6 +361,156 @@ public class HospitalServiceImpl implements HospitalService {
 
     @Override
     @Transactional
+    public InvoiceDto createInvoice(InvoiceDto request) {
+        UUID tenantId = resolveTenantId();
+        String invoiceNum = "INV-" + (System.currentTimeMillis() % 1000000);
+
+        BigDecimal subtotal = BigDecimal.ZERO;
+        List<InvoiceItem> items = new ArrayList<>();
+
+        if (request.getItems() != null) {
+            for (InvoiceItemDto itemDto : request.getItems()) {
+                BigDecimal total = itemDto.getUnitPrice().multiply(BigDecimal.valueOf(itemDto.getQuantity()));
+                subtotal = subtotal.add(total);
+            }
+        }
+
+        BigDecimal tax = request.getTaxAmount() != null ? request.getTaxAmount() : subtotal.multiply(new BigDecimal("0.10"));
+        BigDecimal discount = request.getDiscountAmount() != null ? request.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal totalAmount = subtotal.add(tax).subtract(discount);
+
+        Invoice invoice = Invoice.builder()
+                .tenantId(tenantId)
+                .invoiceNumber(invoiceNum)
+                .patientId(request.getPatientId())
+                .appointmentId(request.getAppointmentId())
+                .subtotal(subtotal)
+                .taxAmount(tax)
+                .discountAmount(discount)
+                .totalAmount(totalAmount)
+                .status("UNPAID")
+                .dueDate(request.getDueDate())
+                .build();
+
+        if (request.getItems() != null) {
+            for (InvoiceItemDto itemDto : request.getItems()) {
+                BigDecimal total = itemDto.getUnitPrice().multiply(BigDecimal.valueOf(itemDto.getQuantity()));
+                InvoiceItem item = InvoiceItem.builder()
+                        .invoice(invoice)
+                        .description(itemDto.getDescription())
+                        .quantity(itemDto.getQuantity())
+                        .unitPrice(itemDto.getUnitPrice())
+                        .totalPrice(total)
+                        .build();
+                items.add(item);
+            }
+        }
+        invoice.setItems(items);
+
+        Invoice saved = invoiceRepository.save(invoice);
+        return mapInvoiceToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<InvoiceDto> getInvoices(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<InvoiceDto> page = invoiceRepository.findByTenantId(tenantId, pageable).map(this::mapInvoiceToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public PaymentDto processPayment(PaymentDto request) {
+        UUID tenantId = resolveTenantId();
+        Invoice invoice = invoiceRepository.findById(request.getInvoiceId())
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", request.getInvoiceId()));
+
+        String payNum = "PAY-" + (System.currentTimeMillis() % 1000000);
+        Payment payment = Payment.builder()
+                .tenantId(tenantId)
+                .invoiceId(invoice.getId())
+                .paymentNumber(payNum)
+                .amount(request.getAmount())
+                .paymentMethod(request.getPaymentMethod())
+                .transactionReference(request.getTransactionReference() != null ? request.getTransactionReference() : "TXN-" + System.currentTimeMillis())
+                .status("COMPLETED")
+                .build();
+
+        Payment saved = paymentRepository.save(payment);
+
+        invoice.setStatus("PAID");
+        invoiceRepository.save(invoice);
+
+        return mapPaymentToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PaymentDto> getPayments(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<PaymentDto> page = paymentRepository.findByTenantId(tenantId, pageable).map(this::mapPaymentToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public InsuranceProviderDto addInsuranceProvider(InsuranceProviderDto request) {
+        UUID tenantId = resolveTenantId();
+        InsuranceProvider provider = InsuranceProvider.builder()
+                .tenantId(tenantId)
+                .name(request.getName())
+                .code(request.getCode())
+                .contactPhone(request.getContactPhone())
+                .email(request.getEmail())
+                .address(request.getAddress())
+                .build();
+
+        InsuranceProvider saved = insuranceProviderRepository.save(provider);
+        return mapProviderToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsuranceProviderDto> getInsuranceProviders() {
+        UUID tenantId = resolveTenantId();
+        return insuranceProviderRepository.findByTenantId(tenantId).stream()
+                .map(this::mapProviderToDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public InsuranceClaimDto submitInsuranceClaim(InsuranceClaimDto request) {
+        UUID tenantId = resolveTenantId();
+        String claimNum = "CLM-" + (System.currentTimeMillis() % 1000000);
+
+        InsuranceClaim claim = InsuranceClaim.builder()
+                .tenantId(tenantId)
+                .claimNumber(claimNum)
+                .patientId(request.getPatientId())
+                .insuranceProviderId(request.getInsuranceProviderId())
+                .invoiceId(request.getInvoiceId())
+                .claimAmount(request.getClaimAmount())
+                .approvedAmount(BigDecimal.ZERO)
+                .status("SUBMITTED")
+                .notes(request.getNotes())
+                .build();
+
+        InsuranceClaim saved = insuranceClaimRepository.save(claim);
+        return mapClaimToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<InsuranceClaimDto> getInsuranceClaims(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<InsuranceClaimDto> page = insuranceClaimRepository.findByTenantId(tenantId, pageable).map(this::mapClaimToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
     public EhrRecordDto saveEhrRecord(EhrRecordDto request) {
         UUID tenantId = resolveTenantId();
 
@@ -524,6 +680,70 @@ public class HospitalServiceImpl implements HospitalService {
                 .message(r.getMessage())
                 .status(r.getStatus())
                 .sentAt(r.getSentAt())
+                .build();
+    }
+
+    private InvoiceDto mapInvoiceToDto(Invoice i) {
+        List<InvoiceItemDto> itemDtos = i.getItems() != null 
+                ? i.getItems().stream().map(item -> InvoiceItemDto.builder()
+                        .id(item.getId())
+                        .description(item.getDescription())
+                        .quantity(item.getQuantity())
+                        .unitPrice(item.getUnitPrice())
+                        .totalPrice(item.getTotalPrice())
+                        .build()).collect(Collectors.toList())
+                : new ArrayList<>();
+
+        return InvoiceDto.builder()
+                .id(i.getId())
+                .invoiceNumber(i.getInvoiceNumber())
+                .patientId(i.getPatientId())
+                .appointmentId(i.getAppointmentId())
+                .subtotal(i.getSubtotal())
+                .taxAmount(i.getTaxAmount())
+                .discountAmount(i.getDiscountAmount())
+                .totalAmount(i.getTotalAmount())
+                .status(i.getStatus())
+                .dueDate(i.getDueDate())
+                .items(itemDtos)
+                .build();
+    }
+
+    private PaymentDto mapPaymentToDto(Payment p) {
+        return PaymentDto.builder()
+                .id(p.getId())
+                .invoiceId(p.getInvoiceId())
+                .paymentNumber(p.getPaymentNumber())
+                .amount(p.getAmount())
+                .paymentMethod(p.getPaymentMethod())
+                .transactionReference(p.getTransactionReference())
+                .status(p.getStatus())
+                .paymentDate(p.getPaymentDate())
+                .build();
+    }
+
+    private InsuranceProviderDto mapProviderToDto(InsuranceProvider p) {
+        return InsuranceProviderDto.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .code(p.getCode())
+                .contactPhone(p.getContactPhone())
+                .email(p.getEmail())
+                .address(p.getAddress())
+                .build();
+    }
+
+    private InsuranceClaimDto mapClaimToDto(InsuranceClaim c) {
+        return InsuranceClaimDto.builder()
+                .id(c.getId())
+                .claimNumber(c.getClaimNumber())
+                .patientId(c.getPatientId())
+                .insuranceProviderId(c.getInsuranceProviderId())
+                .invoiceId(c.getInvoiceId())
+                .claimAmount(c.getClaimAmount())
+                .approvedAmount(c.getApprovedAmount())
+                .status(c.getStatus())
+                .notes(c.getNotes())
                 .build();
     }
 

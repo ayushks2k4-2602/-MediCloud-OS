@@ -19,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/hospital")
 @RequiredArgsConstructor
-@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Waiting List, Reminders, EHR, Pharmacy)")
+@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Billing, Payments, Insurance Claims, EHR, Pharmacy)")
 public class HospitalController {
 
     private final HospitalService hospitalService;
@@ -181,6 +181,65 @@ public class HospitalController {
     public ResponseEntity<ApiResponse<PageResponse<ReminderLogDto>>> getReminderLogs(Pageable pageable) {
         PageResponse<ReminderLogDto> logs = hospitalService.getReminderLogs(pageable);
         return ResponseEntity.ok(ApiResponse.success(logs));
+    }
+
+    // BILLING & INVOICING
+    @PostMapping("/invoices")
+    @Operation(summary = "Create patient billing invoice with itemized breakdown")
+    public ResponseEntity<ApiResponse<InvoiceDto>> createInvoice(@Valid @RequestBody InvoiceDto request) {
+        InvoiceDto invoice = hospitalService.createInvoice(request);
+        return new ResponseEntity<>(ApiResponse.success(invoice, "Invoice generated successfully"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/invoices")
+    @Operation(summary = "List tenant billing invoices")
+    public ResponseEntity<ApiResponse<PageResponse<InvoiceDto>>> getInvoices(Pageable pageable) {
+        PageResponse<InvoiceDto> invoices = hospitalService.getInvoices(pageable);
+        return ResponseEntity.ok(ApiResponse.success(invoices));
+    }
+
+    // PAYMENTS & STRIPE ABSTRACTION
+    @PostMapping("/payments")
+    @Operation(summary = "Process patient invoice payment (Cash, Credit Card, Stripe abstraction, Insurance)")
+    public ResponseEntity<ApiResponse<PaymentDto>> processPayment(@Valid @RequestBody PaymentDto request) {
+        PaymentDto payment = hospitalService.processPayment(request);
+        return new ResponseEntity<>(ApiResponse.success(payment, "Payment processed successfully"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/payments")
+    @Operation(summary = "List tenant payment transaction records")
+    public ResponseEntity<ApiResponse<PageResponse<PaymentDto>>> getPayments(Pageable pageable) {
+        PageResponse<PaymentDto> payments = hospitalService.getPayments(pageable);
+        return ResponseEntity.ok(ApiResponse.success(payments));
+    }
+
+    // INSURANCE PROVIDERS & CLAIMS
+    @PostMapping("/insurance/providers")
+    @Operation(summary = "Register an insurance provider")
+    public ResponseEntity<ApiResponse<InsuranceProviderDto>> addInsuranceProvider(@Valid @RequestBody InsuranceProviderDto request) {
+        InsuranceProviderDto provider = hospitalService.addInsuranceProvider(request);
+        return new ResponseEntity<>(ApiResponse.success(provider, "Insurance provider registered"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/insurance/providers")
+    @Operation(summary = "List insurance providers")
+    public ResponseEntity<ApiResponse<List<InsuranceProviderDto>>> getInsuranceProviders() {
+        List<InsuranceProviderDto> providers = hospitalService.getInsuranceProviders();
+        return ResponseEntity.ok(ApiResponse.success(providers));
+    }
+
+    @PostMapping("/insurance/claims")
+    @Operation(summary = "Submit insurance claim for patient invoice")
+    public ResponseEntity<ApiResponse<InsuranceClaimDto>> submitInsuranceClaim(@Valid @RequestBody InsuranceClaimDto request) {
+        InsuranceClaimDto claim = hospitalService.submitInsuranceClaim(request);
+        return new ResponseEntity<>(ApiResponse.success(claim, "Insurance claim submitted"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/insurance/claims")
+    @Operation(summary = "List patient insurance claims")
+    public ResponseEntity<ApiResponse<PageResponse<InsuranceClaimDto>>> getInsuranceClaims(Pageable pageable) {
+        PageResponse<InsuranceClaimDto> claims = hospitalService.getInsuranceClaims(pageable);
+        return ResponseEntity.ok(ApiResponse.success(claims));
     }
 
     // EHR RECORDS
