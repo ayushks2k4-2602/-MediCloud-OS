@@ -19,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/hospital")
 @RequiredArgsConstructor
-@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Billing, Payments, LIS, EHR, Pharmacy)")
+@Tag(name = "Hospital Management", description = "Multi-Tenant Hospital Management APIs (Patients, Doctors, Appointments, Scheduling, Billing, Payments, LIS, Pharmacy Inventory & Prescription Fulfillment, EHR)")
 public class HospitalController {
 
     private final HospitalService hospitalService;
@@ -297,6 +297,63 @@ public class HospitalController {
     public ResponseEntity<ApiResponse<PageResponse<LabTestResultDto>>> getLabResults(Pageable pageable) {
         PageResponse<LabTestResultDto> results = hospitalService.getLabResults(pageable);
         return ResponseEntity.ok(ApiResponse.success(results));
+    }
+
+    // PHARMACY INVENTORY & PRESCRIPTION FULFILLMENT
+    @PostMapping("/pharmacy/suppliers")
+    @Operation(summary = "Register a pharmacy supplier")
+    public ResponseEntity<ApiResponse<PharmacySupplierDto>> addPharmacySupplier(@Valid @RequestBody PharmacySupplierDto request) {
+        PharmacySupplierDto supplier = hospitalService.addPharmacySupplier(request);
+        return new ResponseEntity<>(ApiResponse.success(supplier, "Pharmacy supplier registered"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/pharmacy/suppliers")
+    @Operation(summary = "List pharmacy suppliers")
+    public ResponseEntity<ApiResponse<List<PharmacySupplierDto>>> getPharmacySuppliers() {
+        List<PharmacySupplierDto> suppliers = hospitalService.getPharmacySuppliers();
+        return ResponseEntity.ok(ApiResponse.success(suppliers));
+    }
+
+    @PostMapping("/pharmacy/purchase-orders")
+    @Operation(summary = "Create pharmacy purchase order")
+    public ResponseEntity<ApiResponse<PurchaseOrderDto>> createPurchaseOrder(@Valid @RequestBody PurchaseOrderDto request) {
+        PurchaseOrderDto po = hospitalService.createPurchaseOrder(request);
+        return new ResponseEntity<>(ApiResponse.success(po, "Purchase order created"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/pharmacy/purchase-orders")
+    @Operation(summary = "List pharmacy purchase orders")
+    public ResponseEntity<ApiResponse<PageResponse<PurchaseOrderDto>>> getPurchaseOrders(Pageable pageable) {
+        PageResponse<PurchaseOrderDto> pos = hospitalService.getPurchaseOrders(pageable);
+        return ResponseEntity.ok(ApiResponse.success(pos));
+    }
+
+    @PostMapping("/pharmacy/fulfillments")
+    @Operation(summary = "Fulfill prescription with automatic inventory stock deduction")
+    public ResponseEntity<ApiResponse<PrescriptionFulfillmentDto>> fulfillPrescription(@Valid @RequestBody PrescriptionFulfillmentDto request) {
+        PrescriptionFulfillmentDto fulfillment = hospitalService.fulfillPrescription(request);
+        return new ResponseEntity<>(ApiResponse.success(fulfillment, "Prescription fulfilled & medicine stock updated"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/pharmacy/fulfillments")
+    @Operation(summary = "List prescription fulfillments")
+    public ResponseEntity<ApiResponse<PageResponse<PrescriptionFulfillmentDto>>> getPrescriptionFulfillments(Pageable pageable) {
+        PageResponse<PrescriptionFulfillmentDto> fulfillments = hospitalService.getPrescriptionFulfillments(pageable);
+        return ResponseEntity.ok(ApiResponse.success(fulfillments));
+    }
+
+    @PostMapping("/pharmacy/stock-movements")
+    @Operation(summary = "Log medicine stock movement (Purchase, Dispense, Adjustment, Return)")
+    public ResponseEntity<ApiResponse<StockMovementDto>> logStockMovement(@Valid @RequestBody StockMovementDto request) {
+        StockMovementDto movement = hospitalService.logStockMovement(request);
+        return new ResponseEntity<>(ApiResponse.success(movement, "Stock movement logged"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/pharmacy/stock-movements")
+    @Operation(summary = "List pharmacy stock movement history")
+    public ResponseEntity<ApiResponse<PageResponse<StockMovementDto>>> getStockMovements(Pageable pageable) {
+        PageResponse<StockMovementDto> movements = hospitalService.getStockMovements(pageable);
+        return ResponseEntity.ok(ApiResponse.success(movements));
     }
 
     // EHR RECORDS

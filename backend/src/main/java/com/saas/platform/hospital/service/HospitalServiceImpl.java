@@ -43,6 +43,10 @@ public class HospitalServiceImpl implements HospitalService {
     private final LabOrderRepository labOrderRepository;
     private final LabSampleRepository labSampleRepository;
     private final LabTestResultRepository labTestResultRepository;
+    private final PharmacySupplierRepository pharmacySupplierRepository;
+    private final PurchaseOrderRepository purchaseOrderRepository;
+    private final PrescriptionFulfillmentRepository prescriptionFulfillmentRepository;
+    private final StockMovementRepository stockMovementRepository;
     private final EhrRecordRepository ehrRecordRepository;
     private final MedicineRepository medicineRepository;
 
@@ -643,6 +647,135 @@ public class HospitalServiceImpl implements HospitalService {
 
     @Override
     @Transactional
+    public PharmacySupplierDto addPharmacySupplier(PharmacySupplierDto request) {
+        UUID tenantId = resolveTenantId();
+        PharmacySupplier supplier = PharmacySupplier.builder()
+                .tenantId(tenantId)
+                .name(request.getName())
+                .code(request.getCode())
+                .contactPhone(request.getContactPhone())
+                .email(request.getEmail())
+                .address(request.getAddress())
+                .build();
+
+        PharmacySupplier saved = pharmacySupplierRepository.save(supplier);
+        return mapSupplierToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PharmacySupplierDto> getPharmacySuppliers() {
+        UUID tenantId = resolveTenantId();
+        return pharmacySupplierRepository.findByTenantId(tenantId).stream()
+                .map(this::mapSupplierToDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public PurchaseOrderDto createPurchaseOrder(PurchaseOrderDto request) {
+        UUID tenantId = resolveTenantId();
+        String poNum = "PO-" + (System.currentTimeMillis() % 1000000);
+
+        PurchaseOrder po = PurchaseOrder.builder()
+                .tenantId(tenantId)
+                .poNumber(poNum)
+                .supplierId(request.getSupplierId())
+                .totalAmount(request.getTotalAmount() != null ? request.getTotalAmount() : BigDecimal.ZERO)
+                .status("ORDERED")
+                .build();
+
+        PurchaseOrder saved = purchaseOrderRepository.save(po);
+        return mapPOToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PurchaseOrderDto> getPurchaseOrders(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<PurchaseOrderDto> page = purchaseOrderRepository.findByTenantId(tenantId, pageable).map(this::mapPOToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public PrescriptionFulfillmentDto fulfillPrescription(PrescriptionFulfillmentDto request) {
+        UUID tenantId = resolveTenantId();
+        String fulNum = "FUL-" + (System.currentTimeMillis() % 1000000);
+
+        Medicine medicine = medicineRepository.findById(request.getMedicineId())
+                .orElseThrow(() -> new ResourceNotFoundException("Medicine", "id", request.getMedicineId()));
+
+        int qty = request.getQuantityDispensed() != null ? request.getQuantityDispensed() : 1;
+        BigDecimal unitPrice = medicine.getUnitPrice() != null ? medicine.getUnitPrice() : BigDecimal.TEN;
+        BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(qty));
+
+        // Deduct stock automatically
+        int newStock = Math.max(0, medicine.getStockQuantity() - qty);
+        medicine.setStockQuantity(newStock);
+        medicineRepository.save(medicine);
+
+        // Log Stock Movement
+        StockMovement movement = StockMovement.builder()
+                .tenantId(tenantId)
+                .medicineId(medicine.getId())
+                .movementType("DISPENSE")
+                .quantity(qty)
+                .reason("Prescription fulfillment " + fulNum)
+                .build();
+        stockMovementRepository.save(movement);
+
+        PrescriptionFulfillment fulfillment = PrescriptionFulfillment.builder()
+                .tenantId(tenantId)
+                .fulfillmentNumber(fulNum)
+                .patientId(request.getPatientId())
+                .doctorId(request.getDoctorId())
+                .medicineId(medicine.getId())
+                .quantityDispensed(qty)
+                .unitPrice(unitPrice)
+                .totalPrice(totalPrice)
+                .status("DISPENSED")
+                .dispensedAt(ZonedDateTime.now())
+                .build();
+
+        PrescriptionFulfillment saved = prescriptionFulfillmentRepository.save(fulfillment);
+        return mapFulfillmentToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<PrescriptionFulfillmentDto> getPrescriptionFulfillments(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<PrescriptionFulfillmentDto> page = prescriptionFulfillmentRepository.findByTenantId(tenantId, pageable).map(this::mapFulfillmentToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
+    public StockMovementDto logStockMovement(StockMovementDto request) {
+        UUID tenantId = resolveTenantId();
+        StockMovement movement = StockMovement.builder()
+                .tenantId(tenantId)
+                .medicineId(request.getMedicineId())
+                .movementType(request.getMovementType())
+                .quantity(request.getQuantity())
+                .reason(request.getReason())
+                .build();
+
+        StockMovement saved = stockMovementRepository.save(movement);
+        return mapMovementToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<StockMovementDto> getStockMovements(Pageable pageable) {
+        UUID tenantId = resolveTenantId();
+        Page<StockMovementDto> page = stockMovementRepository.findByTenantId(tenantId, pageable).map(this::mapMovementToDto);
+        return PageResponse.from(page);
+    }
+
+    @Override
+    @Transactional
     public EhrRecordDto saveEhrRecord(EhrRecordDto request) {
         UUID tenantId = resolveTenantId();
 
@@ -928,6 +1061,53 @@ public class HospitalServiceImpl implements HospitalService {
                 .status(r.getStatus())
                 .pathologistNotes(r.getPathologistNotes())
                 .approvedAt(r.getApprovedAt())
+                .build();
+    }
+
+    private PharmacySupplierDto mapSupplierToDto(PharmacySupplier s) {
+        return PharmacySupplierDto.builder()
+                .id(s.getId())
+                .name(s.getName())
+                .code(s.getCode())
+                .contactPhone(s.getContactPhone())
+                .email(s.getEmail())
+                .address(s.getAddress())
+                .build();
+    }
+
+    private PurchaseOrderDto mapPOToDto(PurchaseOrder p) {
+        return PurchaseOrderDto.builder()
+                .id(p.getId())
+                .poNumber(p.getPoNumber())
+                .supplierId(p.getSupplierId())
+                .totalAmount(p.getTotalAmount())
+                .status(p.getStatus())
+                .orderDate(p.getOrderDate())
+                .build();
+    }
+
+    private PrescriptionFulfillmentDto mapFulfillmentToDto(PrescriptionFulfillment f) {
+        return PrescriptionFulfillmentDto.builder()
+                .id(f.getId())
+                .fulfillmentNumber(f.getFulfillmentNumber())
+                .patientId(f.getPatientId())
+                .doctorId(f.getDoctorId())
+                .medicineId(f.getMedicineId())
+                .quantityDispensed(f.getQuantityDispensed())
+                .unitPrice(f.getUnitPrice())
+                .totalPrice(f.getTotalPrice())
+                .status(f.getStatus())
+                .dispensedAt(f.getDispensedAt())
+                .build();
+    }
+
+    private StockMovementDto mapMovementToDto(StockMovement m) {
+        return StockMovementDto.builder()
+                .id(m.getId())
+                .medicineId(m.getMedicineId())
+                .movementType(m.getMovementType())
+                .quantity(m.getQuantity())
+                .reason(m.getReason())
                 .build();
     }
 

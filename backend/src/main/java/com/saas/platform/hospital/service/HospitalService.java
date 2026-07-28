@@ -61,6 +61,18 @@ public interface HospitalService {
     LabTestResultDto enterLabResult(LabTestResultDto request);
     PageResponse<LabTestResultDto> getLabResults(Pageable pageable);
 
+    PharmacySupplierDto addPharmacySupplier(PharmacySupplierDto request);
+    List<PharmacySupplierDto> getPharmacySuppliers();
+
+    PurchaseOrderDto createPurchaseOrder(PurchaseOrderDto request);
+    PageResponse<PurchaseOrderDto> getPurchaseOrders(Pageable pageable);
+
+    PrescriptionFulfillmentDto fulfillPrescription(PrescriptionFulfillmentDto request);
+    PageResponse<PrescriptionFulfillmentDto> getPrescriptionFulfillments(Pageable pageable);
+
+    StockMovementDto logStockMovement(StockMovementDto request);
+    PageResponse<StockMovementDto> getStockMovements(Pageable pageable);
+
     EhrRecordDto saveEhrRecord(EhrRecordDto request);
     PageResponse<EhrRecordDto> getPatientEhrRecords(UUID patientId, Pageable pageable);
 
